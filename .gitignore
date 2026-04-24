@@ -1,0 +1,4 @@
+hermesclaw
+*.log
+router_state.json
+.env
