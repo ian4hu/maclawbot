@@ -55,14 +55,6 @@ cp .env.example .env
 | `/clawbot del <name>` | 删除自定义 Agent |
 | `/clawbot info [name]` | 查看 Agent 详情 |
 
-### 旧版兼容命令
-
-| 命令 | 说明 |
-|------|------|
-| `/hermes` | 切换到 Hermes |
-| `/openclaw` | 切换到 OpenClaw |
-| `/whoami` | 显示当前状态 |
-
 ## 使用示例
 
 ### 创建新 Agent

@@ -83,23 +83,7 @@ func ProcessCommand(state *State, text string) CmdResult {
 		return processClawbotCommand(state, text)
 	}
 
-	// Legacy single-word commands
-	switch text {
-	case "/hermes":
-		if err := state.SetDefaultAgent("hermes"); err != nil {
-			return CmdResult{Text: "Error: " + err.Error(), IsHandled: true}
-		}
-		return CmdResult{Text: "Switched to **Hermes**.", IsHandled: true}
-	case "/openclaw":
-		if err := state.SetDefaultAgent("openclaw"); err != nil {
-			return CmdResult{Text: "Error: " + err.Error(), IsHandled: true}
-		}
-		return CmdResult{Text: "Switched to **OpenClaw**.", IsHandled: true}
-	case "/whoami":
-		return CmdResult{Text: formatWhoami(state), IsHandled: true}
-	default:
-		return CmdResult{IsHandled: false}
-	}
+	return CmdResult{IsHandled: false}
 }
 
 // processClawbotCommand handles all /clawbot subcommands:
@@ -264,11 +248,6 @@ func formatWhoami(state *State) string {
 		"- `/clawbot list` - List all agents",
 		"- `/clawbot new <name>` - Create new agent",
 		"- `/clawbot set <name>` - Switch to agent",
-		"",
-		"**Legacy commands:**",
-		"- `/hermes` - Switch to Hermes",
-		"- `/openclaw` - Switch to OpenClaw",
-		"- `/whoami` - Show this status",
 	}
 
 	return strings.Join(lines, "\n")

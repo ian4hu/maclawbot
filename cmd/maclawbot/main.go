@@ -171,10 +171,11 @@ func procMsg(msg router.Message, client *ilink.Client, state *router.State, pm *
 
 	// Show welcome message to new users (non-command messages)
 	if state.ShouldShowStatus(uid) && !hasPrefix(txt, "/") {
-		result := router.ProcessCommand(state, "/whoami")
-		if result.IsHandled {
-			client.SendText(uid, result.Text, ctx)
-		}
+		// Build welcome message directly instead of using /whoami command
+		currentAgent := state.GetDefaultAgent()
+		agent, _ := state.GetAgent(currentAgent)
+		welcomeMsg := fmt.Sprintf("**MAClawBot** by Github @ian4hu\n**Current agent**: **%s** (port %d)\n\n**Commands:**\n- `/clawbot` - Show clawbot help\n- `/clawbot list` - List all agents\n- `/clawbot new <name>` - Create new agent\n- `/clawbot set <name>` - Switch to agent", currentAgent, agent.Port)
+		client.SendText(uid, welcomeMsg, ctx)
 		state.MarkStatusShown(uid)
 	}
 
