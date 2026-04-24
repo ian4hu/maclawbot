@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -241,13 +242,31 @@ func (pm *ProxyManager) StartAgent(agent router.Agent) error {
 		Handler: handler,
 	}
 
+	// Channel to signal server is ready
+	ready := make(chan error, 1)
+
 	// Start server in background
 	go func() {
 		log.Printf("Starting agent %s on %s", agent.Name, addr)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		
+		// Create a listener to know when server is ready
+		listener, err := net.Listen("tcp", addr)
+		if err != nil {
+			ready <- fmt.Errorf("failed to listen on %s: %v", addr, err)
+			return
+		}
+		
+		ready <- nil // Signal server is ready
+		
+		if err := srv.Serve(listener); err != nil && err != http.ErrServerClosed {
 			log.Printf("Agent %s error: %v", agent.Name, err)
 		}
 	}()
+
+	// Wait for server to be ready
+	if err := <-ready; err != nil {
+		return err
+	}
 
 	pm.servers[agent.Name] = srv
 	pm.queues[agent.Name] = queue

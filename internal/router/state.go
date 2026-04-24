@@ -63,7 +63,7 @@ func (s *State) ensureDefaultAgents() {
 			Tag:     "[OpenClaw]",
 			Enabled: true,
 		}
-		s.save()
+		s.saveLocked() // Call internal save that doesn't try to acquire the lock
 	}
 }
 
@@ -95,6 +95,11 @@ func (s *State) load() {
 func (s *State) save() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.saveLocked()
+}
+
+// saveLocked writes the current state to disk. Must be called with s.mu held.
+func (s *State) saveLocked() {
 
 	data := struct {
 		Agents      map[string]Agent `json:"agents"`
@@ -147,7 +152,7 @@ func (s *State) AddAgent(agent Agent) error {
 		return fmt.Errorf("agent %s already exists", agent.Name)
 	}
 	s.agents[agent.Name] = agent
-	s.save()
+	s.saveLocked() // Call internal save since we already hold the lock
 	return nil
 }
 
@@ -167,7 +172,7 @@ func (s *State) RemoveAgent(name string) error {
 	}
 
 	delete(s.agents, name)
-	s.save()
+	s.saveLocked() // Call internal save since we already hold the lock
 	return nil
 }
 
@@ -203,7 +208,7 @@ func (s *State) SetDefaultAgent(name string) error {
 		}
 		s.agents[n] = agent
 	}
-	s.save()
+	s.saveLocked() // Call internal save since we already hold the lock
 	return nil
 }
 
@@ -219,7 +224,7 @@ func (s *State) MarkStatusShown(uid string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.statusShown[uid] = true
-	s.save()
+	s.saveLocked() // Call internal save since we already hold the lock
 }
 
 // GetNextAvailablePort returns an unused port number for new agents.

@@ -45,13 +45,26 @@ func (q *MessageQueue) Enqueue(msg interface{}) {
 // DequeueAll returns all queued messages and clears the queue.
 // If timeout > 0, blocks up to timeout duration waiting for messages.
 func (q *MessageQueue) DequeueAll(timeout time.Duration) []interface{} {
-	// If timeout specified, wait for signal or timeout
-	if timeout > 0 {
-		q.event.Wait()
-	}
+	deadline := time.Now().Add(timeout)
 
 	q.mu.Lock()
 	defer q.mu.Unlock()
+
+	// If timeout specified and queue is empty, wait for signal or timeout
+	for timeout > 0 && len(q.msgs) == 0 {
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			break // Timeout expired
+		}
+
+		// Schedule a wake-up call for the remaining timeout
+		timer := time.AfterFunc(remaining, func() {
+			q.event.Broadcast()
+		})
+		
+		q.event.Wait() // Wait releases and reacquires the lock
+		timer.Stop()
+	}
 
 	// Copy current messages and clear queue
 	batch := make([]interface{}, len(q.msgs))
