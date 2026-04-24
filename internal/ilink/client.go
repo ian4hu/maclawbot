@@ -2,10 +2,14 @@ package ilink
 
 import (
 	"bytes"
+	"crypto/rand"
+	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 
 	"maclawbot/internal/router"
@@ -48,6 +52,33 @@ type SendMessageResponse struct {
 	ErrMsg string `json:"errmsg"`
 }
 
+// GetConfigRequest is the request body for getting typing ticket.
+type GetConfigRequest struct {
+	ToUserID string   `json:"to_user_id"`
+	BaseInfo BaseInfo `json:"base_info"`
+}
+
+// GetConfigResponse is the response containing typing ticket.
+type GetConfigResponse struct {
+	Ret         int    `json:"ret"`
+	ErrMsg      string `json:"errmsg"`
+	TypingTicket string `json:"typing_ticket"`
+}
+
+// SendTypingRequest is the request body for typing indicator.
+type SendTypingRequest struct {
+	ToUserID     string `json:"to_user_id"`
+	TypingTicket string `json:"typing_ticket"`
+	Status       int    `json:"status"` // 1=start, 2=stop
+	BaseInfo     BaseInfo `json:"base_info"`
+}
+
+// SendTypingResponse is the response from typing indicator.
+type SendTypingResponse struct {
+	Ret    int    `json:"ret"`
+	ErrMsg string `json:"errmsg"`
+}
+
 // Client is an iLink API client for bot operations.
 type Client struct {
 	BaseURL    string
@@ -66,16 +97,29 @@ func NewClient(baseURL, token string) *Client {
 	}
 }
 
+// GenerateUIN generates a random X-WECHAT-UIN header value.
+// Algorithm: random 4 bytes → uint32 → decimal string → base64
+func GenerateUIN() string {
+	var n uint32
+	if err := binary.Read(rand.Reader, binary.LittleEndian, &n); err != nil {
+		// Fallback to time-based if random fails
+		n = uint32(time.Now().UnixNano())
+	}
+	return base64.StdEncoding.EncodeToString([]byte(strconv.FormatUint(uint64(n), 10)))
+}
+
 // headers builds the common HTTP headers for iLink requests.
 func (c *Client) headers(body []byte) http.Header {
-	return http.Header{
+	h := http.Header{
 		"Content-Type":            []string{"application/json"},
 		"AuthorizationType":       []string{"ilink_bot_token"},
 		"Content-Length":          []string{fmt.Sprintf("%d", len(body))},
 		"iLink-App-Id":           []string{""},
 		"iLink-App-ClientVersion": []string{ILINKCV},
 		"Authorization":           []string{"Bearer " + c.Token},
+		"X-WECHAT-UIN":           []string{GenerateUIN()}, // Required by iLink protocol
 	}
+	return h
 }
 
 // GetUpdates long-polls for new messages from iLink.
@@ -126,7 +170,8 @@ func (c *Client) GetUpdates(buf string, timeout time.Duration) (*GetUpdatesRespo
 
 // SendText sends a plain text message to a user through iLink.
 func (c *Client) SendText(toUser, text, ctx string) error {
-	clientID := fmt.Sprintf("hc-%d", time.Now().UnixNano())
+	// Generate unique client ID using timestamp + random bytes
+	clientID := fmt.Sprintf("hc-%d-%s", time.Now().UnixNano(), GenerateUIN()[:8])
 
 	msg := router.SendMessage{
 		FromUserID:   "",
@@ -175,6 +220,97 @@ func (c *Client) SendText(toUser, text, ctx string) error {
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("send failed with status: %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// GetTypingTicket gets a typing ticket for a user (valid ~24h).
+func (c *Client) GetTypingTicket(toUser string) (string, error) {
+	reqBody := GetConfigRequest{
+		ToUserID: toUser,
+		BaseInfo: BaseInfo{
+			ChannelVersion: ILINK_VER,
+		},
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		return "", err
+	}
+
+	url := c.BaseURL + "/ilink/bot/getconfig"
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	req.Header = c.headers(body)
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	var result GetConfigResponse
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return "", err
+	}
+
+	if result.Ret != 0 {
+		return "", fmt.Errorf("getconfig failed: ret=%d, errmsg=%s", result.Ret, result.ErrMsg)
+	}
+
+	return result.TypingTicket, nil
+}
+
+// SendTyping sends a typing indicator to a user.
+// status: 1=start typing, 2=stop typing
+func (c *Client) SendTyping(toUser, typingTicket string, status int) error {
+	reqBody := SendTypingRequest{
+		ToUserID:     toUser,
+		TypingTicket: typingTicket,
+		Status:       status,
+		BaseInfo: BaseInfo{
+			ChannelVersion: ILINK_VER,
+		},
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		return err
+	}
+
+	url := c.BaseURL + "/ilink/bot/sendtyping"
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header = c.headers(body)
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	var result SendTypingResponse
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return err
+	}
+
+	if result.Ret != 0 {
+		return fmt.Errorf("sendtyping failed: ret=%d, errmsg=%s", result.Ret, result.ErrMsg)
 	}
 
 	return nil

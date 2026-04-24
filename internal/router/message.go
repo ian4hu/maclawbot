@@ -8,7 +8,10 @@ import (
 // iLink message type constants
 const (
 	MessageTypeText  = 1  // Text message
+	MessageTypeImage = 2  // Image message
 	MessageTypeVoice = 3  // Voice message (with transcription)
+	MessageTypeVideo = 4  // Video message
+	MessageTypeFile  = 5  // File message
 )
 
 // TextItem represents the content of a text message.
@@ -21,11 +24,41 @@ type VoiceItem struct {
 	Text string `json:"text"` // Transcription of the voice message
 }
 
+// ImageItem represents an image message.
+type ImageItem struct {
+	MD5    string `json:"md5"`    // File MD5
+	Size   int64  `json:"size"`   // File size in bytes
+	Width  int    `json:"width"`  // Image width
+	Height int    `json:"height"` // Image height
+	AesKey string `json:"aeskey"` // AES-128-ECB encryption key
+}
+
+// VideoItem represents a video message.
+type VideoItem struct {
+	MD5    string `json:"md5"`    // File MD5
+	Size   int64  `json:"size"`   // File size in bytes
+	Width  int    `json:"width"`  // Video width
+	Height int    `json:"height"` // Video height
+	Duration int  `json:"duration"` // Duration in seconds
+	AesKey string `json:"aeskey"` // AES-128-ECB encryption key
+}
+
+// FileItem represents a file message.
+type FileItem struct {
+	MD5    string `json:"md5"`    // File MD5
+	Size   int64  `json:"size"`   // File size in bytes
+	FileName string `json:"file_name"` // File name
+	AesKey string `json:"aeskey"` // AES-128-ECB encryption key
+}
+
 // Item is a union type for different message content types.
 type Item struct {
-	Type       int        `json:"type"`                 // Message type (1=text, 3=voice)
+	Type       int        `json:"type"`                 // Message type (1=text, 2=image, 3=voice, 4=video, 5=file)
 	TextItem   *TextItem  `json:"text_item,omitempty"`   // Text content, if type==1
+	ImageItem  *ImageItem `json:"image_item,omitempty"`  // Image content, if type==2
 	VoiceItem  *VoiceItem `json:"voice_item,omitempty"` // Voice content, if type==3
+	VideoItem  *VideoItem `json:"video_item,omitempty"` // Video content, if type==4
+	FileItem   *FileItem  `json:"file_item,omitempty"`  // File content, if type==5
 }
 
 // Message represents an incoming message from iLink.

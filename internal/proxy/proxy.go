@@ -153,6 +153,7 @@ func (h *ProxyHandler) forwardToILink(w http.ResponseWriter, ep string, reqBody 
 	req.Header.Set("iLink-App-Id", "")
 	req.Header.Set("iLink-App-ClientVersion", ilink.ILINKCV)
 	req.Header.Set("Authorization", "Bearer "+h.ILinkToken)
+	req.Header.Set("X-WECHAT-UIN", ilink.GenerateUIN()) // Required by iLink protocol
 
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
