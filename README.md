@@ -172,10 +172,6 @@ Agent 配置和用户路由保存在 `maclawbot_state.json`：
       "enabled": true
     }
   },
-  "user_agents": {
-    "user_id_1": "claude",
-    "user_id_2": "hermes"
-  },
   "status_shown": {
     "user_id_1": true,
     "user_id_2": true
@@ -191,7 +187,6 @@ Agent 配置和用户路由保存在 `maclawbot_state.json`：
 | `agents[].port` | 该 Agent 的代理端口 |
 | `agents[].tag` | 消息前缀标签 |
 | `agents[].enabled` | 是否启用 |
-| `user_agents` | 用户 -> Agent 的映射（用户级路由） |
 | `status_shown` | 用户是否已看过欢迎消息 |
 
 ## 项目结构
@@ -210,8 +205,6 @@ maclawbot/
 │       ├── message.go    # 消息解析和命令处理
 │       └── state.go      # 状态管理
 ├── .env.example          # 环境变量示例
-├── install.sh            # 安装脚本
-├── fix_hermes_splitting.sh # Hermes 消息分割修复
 └── README.md
 ```
 
@@ -245,11 +238,6 @@ sudo systemctl start maclawbot
 sudo journalctl -u maclawbot -f  # 查看日志
 ```
 
-### 使用安装脚本
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/<user>/maclawbot/main/install.sh | bash
-```
 
 ## 故障排除
 
@@ -265,14 +253,6 @@ curl -fsSL https://raw.githubusercontent.com/<user>/maclawbot/main/install.sh | 
 2. 使用 `/clawbot info` 查看当前设置
 3. 使用 `/clawbot set <name>` 重新设置
 
-### Hermes 消息被分段发送
-
-运行 `fix_hermes_splitting.sh` 修复：
-
-```bash
-bash fix_hermes_splitting.sh
-sudo systemctl restart hermes
-```
 
 ## License
 
