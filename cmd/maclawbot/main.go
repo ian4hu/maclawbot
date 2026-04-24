@@ -180,17 +180,17 @@ func procMsg(msg router.Message, client *ilink.Client, state *router.State, pm *
 	}
 
 	// Handle slash commands
-	if hasPrefix(txt, "/") {
+	if hasPrefix(txt, "/clawbot") {
 		result := router.ProcessCommand(state, txt)
 		if result.IsHandled {
 			client.SendText(uid, result.Text, ctx)
-		}
 
-		// If agent was added or removed, update running servers
-		if result.IsHandled && (hasPrefix(txt, "/clawbot new") || hasPrefix(txt, "/clawbot del")) {
-			handleAgentChange(state, pm)
+			// If agent was added or removed, update running servers
+			if (hasPrefix(txt, "/clawbot new") || hasPrefix(txt, "/clawbot del")) {
+				handleAgentChange(state, pm)
+			}
+			return
 		}
-		return
 	}
 
 	// Route message to the default agent
