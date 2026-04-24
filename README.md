@@ -62,7 +62,7 @@ cp .env.example .env
 | `/clawbot` | 显示帮助 |
 | `/clawbot list` | 列出所有 Agent |
 | `/clawbot new <name> [tag]` | 创建新 Agent |
-| `/clawbot set <name>` | 切换到指定 Agent（仅影响当前用户） |
+| `/clawbot set <name>` | 切换到指定 Agent |
 | `/clawbot del <name>` | 删除自定义 Agent |
 | `/clawbot info [name]` | 查看 Agent 详情 |
 
@@ -151,7 +151,7 @@ Agent **claude** created on port **20001** (tag: [Claude Code]).
 
 ## Agent 配置
 
-Agent 配置和用户路由保存在 `maclawbot_state.json`：
+Agent 配置保存在 `maclawbot_state.json`：
 
 ```json
 {
@@ -245,7 +245,7 @@ go build -ldflags="-X main.Version=2.2.0" -o maclawbot ./cmd/maclawbot
 
 ## 部署指南
 
-### 使用 systemd
+### 使用 systemd (Linux)
 
 ```bash
 # 创建服务文件
@@ -271,6 +271,174 @@ WantedBy=multi-user.target
 sudo systemctl enable maclawbot
 sudo systemctl start maclawbot
 sudo journalctl -u maclawbot -f  # 查看日志
+```
+
+### 使用 launchd (macOS)
+
+macOS 使用 `launchd` 作为服务管理器，可以通过创建 plist 文件实现自启动。
+
+#### 方法一：手动创建 plist 文件
+
+1. **创建 LaunchAgents 目录**（如果不存在）：
+```bash
+mkdir -p ~/Library/LaunchAgents
+```
+
+2. **创建 plist 文件**：
+```bash
+cat > ~/Library/LaunchAgents/com.maclawbot.agent.plist << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.maclawbot.agent</string>
+    
+    <key>ProgramArguments</key>
+    <array>
+        <string>/path/to/maclawbot/maclawbot</string>
+    </array>
+    
+    <key>WorkingDirectory</key>
+    <string>/path/to/maclawbot</string>
+    
+    <key>RunAtLoad</key>
+    <true/>
+    
+    <key>KeepAlive</key>
+    <true/>
+    
+    <key>StandardOutPath</key>
+    <string>/path/to/maclawbot/maclawbot.log</string>
+    
+    <key>StandardErrorPath</key>
+    <string>/path/to/maclawbot/maclawbot.log</string>
+    
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+</dict>
+</plist>
+EOF
+```
+
+3. **替换路径**：
+```bash
+# 将 /path/to/maclawbot 替换为实际路径
+sed -i '' 's|/path/to/maclawbot|'$(pwd)'|g' ~/Library/LaunchAgents/com.maclawbot.agent.plist
+```
+
+4. **加载服务**：
+```bash
+# 加载并启动服务
+launchctl load ~/Library/LaunchAgents/com.maclawbot.agent.plist
+
+# 检查服务状态
+launchctl list | grep maclawbot
+
+# 查看日志
+tail -f ~/Library/LaunchAgents/../maclawbot.log
+```
+
+5. **管理服务**：
+```bash
+# 停止服务
+launchctl unload ~/Library/LaunchAgents/com.maclawbot.agent.plist
+
+# 重新启动服务
+launchctl unload ~/Library/LaunchAgents/com.maclawbot.agent.plist
+launchctl load ~/Library/LaunchAgents/com.maclawbot.agent.plist
+
+# 查看服务详细信息
+launchctl list com.maclawbot.agent
+```
+
+#### 方法二：使用快捷脚本（推荐）
+
+创建一个快速安装脚本：
+
+```bash
+cat > install-macos-service.sh << 'SCRIPT'
+#!/bin/bash
+
+# macOS 自启动服务安装脚本
+set -e
+
+# 获取当前目录
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLIST_FILE="$HOME/Library/LaunchAgents/com.maclawbot.agent.plist"
+
+echo "🔧 安装 MAClawBot macOS 自启动服务..."
+
+# 创建 LaunchAgents 目录
+mkdir -p "$HOME/Library/LaunchAgents"
+
+# 生成 plist 文件
+cat > "$PLIST_FILE" << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.maclawbot.agent</string>
+    
+    <key>ProgramArguments</key>
+    <array>
+        <string>${SCRIPT_DIR}/maclawbot</string>
+    </array>
+    
+    <key>WorkingDirectory</key>
+    <string>${SCRIPT_DIR}</string>
+    
+    <key>RunAtLoad</key>
+    <true/>
+    
+    <key>KeepAlive</key>
+    <true/>
+    
+    <key>StandardOutPath</key>
+    <string>${SCRIPT_DIR}/maclawbot.log</string>
+    
+    <key>StandardErrorPath</key>
+    <string>${SCRIPT_DIR}/maclawbot.log</string>
+    
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+</dict>
+</plist>
+EOF
+
+# 卸载旧服务（如果存在）
+if launchctl list | grep -q "com.maclawbot.agent"; then
+    echo "🔄 停止旧服务..."
+    launchctl unload "$PLIST_FILE" 2>/dev/null || true
+fi
+
+# 加载新服务
+echo "🚀 启动服务..."
+launchctl load "$PLIST_FILE"
+
+echo "✅ MAClawBot 自启动服务安装完成！"
+echo "📝 日志文件: ${SCRIPT_DIR}/maclawbot.log"
+echo ""
+echo "管理命令："
+echo "  查看状态: launchctl list | grep maclawbot"
+echo "  查看日志: tail -f ${SCRIPT_DIR}/maclawbot.log"
+echo "  停止服务: launchctl unload $PLIST_FILE"
+echo "  启动服务: launchctl load $PLIST_FILE"
+SCRIPT
+
+# 添加执行权限
+chmod +x install-macos-service.sh
+
+echo "✅ 安装脚本已创建：install-macos-service.sh"
+echo "运行以下命令安装服务："
+echo "  ./install-macos-service.sh"
 ```
 
 ## 故障排除
