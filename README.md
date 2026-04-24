@@ -6,7 +6,6 @@
 
 - **动态 Agent 管理** - 无需重启即可添加新 Agent
 - **多 Agent 支持** - 同时运行 Hermes、OpenClaw、Claude 或任何自定义 Agent
-- **用户级路由** - 每个用户可设置不同的默认 Agent
 - **命令式切换** - 通过简单命令切换 Agent
 - **持久化配置** - Agent 配置和用户偏好保存到 JSON 文件
 
@@ -93,7 +92,7 @@ Run `/clawbot set claude` to switch to this agent.
 Agent **claude** created on port **20001** (tag: [Claude Code]).
 ```
 
-### 切换 Agent（仅影响你自己）
+### 切换 Agent
 
 ```
 /clawbot set claude
