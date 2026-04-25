@@ -17,8 +17,8 @@ import (
 
 // iLink protocol constants
 const (
-	ILINK_VER = "2.1.7"   // iLink protocol version
-	ILINKCV  = "65547"    // iLink client version
+	ILINK_VER = "2.1.7" // iLink protocol version
+	ILINKCV   = "65547" // iLink client version
 )
 
 // BaseInfo contains common protocol fields for iLink requests.
@@ -34,9 +34,9 @@ type GetUpdatesRequest struct {
 
 // GetUpdatesResponse is the response from long-polling.
 type GetUpdatesResponse struct {
-	Ret           int              `json:"ret"`            // 0 on success
-	ErrCode       int              `json:"errcode"`        // 0 on success
-	Msgs          []router.Message `json:"msgs"`           // New messages
+	Ret           int              `json:"ret"`             // 0 on success
+	ErrCode       int              `json:"errcode"`         // 0 on success
+	Msgs          []router.Message `json:"msgs"`            // New messages
 	GetUpdatesBuf string           `json:"get_updates_buf"` // Next cursor
 }
 
@@ -83,10 +83,10 @@ func (c *Client) headers(body []byte) http.Header {
 		"Content-Type":            []string{"application/json"},
 		"AuthorizationType":       []string{"ilink_bot_token"},
 		"Content-Length":          []string{fmt.Sprintf("%d", len(body))},
-		"iLink-App-Id":           []string{""},
+		"iLink-App-Id":            []string{"bot"},
 		"iLink-App-ClientVersion": []string{ILINKCV},
 		"Authorization":           []string{"Bearer " + c.Token},
-		"X-WECHAT-UIN":           []string{GenerateUIN()}, // Required by iLink protocol
+		"X-WECHAT-UIN":            []string{GenerateUIN()}, // Required by iLink protocol
 	}
 	return h
 }
