@@ -97,7 +97,6 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // handleGetUpdates implements long-polling for the gateway.
 // Returns queued messages or waits until timeout for new messages.
 // This allows the gateway to maintain a persistent connection waiting for messages.
-// X-Queue-Name header specifies accountID_agentName to determine which queue to use.
 func (h *ProxyHandler) handleGetUpdates(w http.ResponseWriter, r *http.Request, body []byte) {
 	var req struct {
 		GetUpdatesBuf string `json:"get_updates_buf"`
