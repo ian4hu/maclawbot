@@ -43,7 +43,7 @@ MAClawBot (polls, routes)
     │
     ├── router/       — message parsing, command handling, state management
     ├── proxy/        — per-agent HTTP proxy + message queue
-    ├── ilink/        — iLink HTTP client (send, poll, typing)
+    ├── ilink/        — iLink HTTP client (send, poll)
     └── config/       — env var loader (singleton)
 
 Agents connect to 127.0.0.1:<port> — NOT to iLink directly.

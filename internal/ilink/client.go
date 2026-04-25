@@ -47,37 +47,6 @@ type SendMessageRequest struct {
 }
 
 // SendMessageResponse is the response from sending messages.
-type SendMessageResponse struct {
-	Ret    int    `json:"ret"`
-	ErrMsg string `json:"errmsg"`
-}
-
-// GetConfigRequest is the request body for getting typing ticket.
-type GetConfigRequest struct {
-	ToUserID string   `json:"to_user_id"`
-	BaseInfo BaseInfo `json:"base_info"`
-}
-
-// GetConfigResponse is the response containing typing ticket.
-type GetConfigResponse struct {
-	Ret         int    `json:"ret"`
-	ErrMsg      string `json:"errmsg"`
-	TypingTicket string `json:"typing_ticket"`
-}
-
-// SendTypingRequest is the request body for typing indicator.
-type SendTypingRequest struct {
-	ToUserID     string `json:"to_user_id"`
-	TypingTicket string `json:"typing_ticket"`
-	Status       int    `json:"status"` // 1=start, 2=stop
-	BaseInfo     BaseInfo `json:"base_info"`
-}
-
-// SendTypingResponse is the response from typing indicator.
-type SendTypingResponse struct {
-	Ret    int    `json:"ret"`
-	ErrMsg string `json:"errmsg"`
-}
 
 // Client is an iLink API client for bot operations.
 type Client struct {
@@ -220,97 +189,6 @@ func (c *Client) SendText(toUser, text, ctx string) error {
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("send failed with status: %d", resp.StatusCode)
-	}
-
-	return nil
-}
-
-// GetTypingTicket gets a typing ticket for a user (valid ~24h).
-func (c *Client) GetTypingTicket(toUser string) (string, error) {
-	reqBody := GetConfigRequest{
-		ToUserID: toUser,
-		BaseInfo: BaseInfo{
-			ChannelVersion: ILINK_VER,
-		},
-	}
-
-	body, err := json.Marshal(reqBody)
-	if err != nil {
-		return "", err
-	}
-
-	url := c.BaseURL + "/ilink/bot/getconfig"
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
-	if err != nil {
-		return "", err
-	}
-	req.Header = c.headers(body)
-
-	resp, err := c.HTTPClient.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-
-	var result GetConfigResponse
-	if err := json.Unmarshal(respBody, &result); err != nil {
-		return "", err
-	}
-
-	if result.Ret != 0 {
-		return "", fmt.Errorf("getconfig failed: ret=%d, errmsg=%s", result.Ret, result.ErrMsg)
-	}
-
-	return result.TypingTicket, nil
-}
-
-// SendTyping sends a typing indicator to a user.
-// status: 1=start typing, 2=stop typing
-func (c *Client) SendTyping(toUser, typingTicket string, status int) error {
-	reqBody := SendTypingRequest{
-		ToUserID:     toUser,
-		TypingTicket: typingTicket,
-		Status:       status,
-		BaseInfo: BaseInfo{
-			ChannelVersion: ILINK_VER,
-		},
-	}
-
-	body, err := json.Marshal(reqBody)
-	if err != nil {
-		return err
-	}
-
-	url := c.BaseURL + "/ilink/bot/sendtyping"
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
-	if err != nil {
-		return err
-	}
-	req.Header = c.headers(body)
-
-	resp, err := c.HTTPClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	var result SendTypingResponse
-	if err := json.Unmarshal(respBody, &result); err != nil {
-		return err
-	}
-
-	if result.Ret != 0 {
-		return fmt.Errorf("sendtyping failed: ret=%d, errmsg=%s", result.Ret, result.ErrMsg)
 	}
 
 	return nil

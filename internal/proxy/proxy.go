@@ -21,9 +21,7 @@ import (
 var allowedEndpoints = map[string]bool{
 	"ilink/bot/getupdates":         true,  // Long-polling for new messages
 	"ilink/bot/sendmessage":       true,  // Sending replies
-	"ilink/bot/getuploadurl":      true,  // Media upload
-	"ilink/bot/sendtyping":        true,  // Typing indicator
-	"ilink/bot/getconfig":         true,  // Bot configuration
+	"ilink/bot/getuploadurl":       true,  // Media upload
 	"ilink/bot/get_bot_qrcode":    true,  // QR code for login
 	"ilink/bot/get_qrcode_status": true,  // QR code scan status
 }
