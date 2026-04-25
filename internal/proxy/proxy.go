@@ -24,8 +24,8 @@ var allowedEndpoints = map[string]bool{
 	"ilink/bot/getuploadurl":      true, // Media upload
 	"ilink/bot/get_bot_qrcode":    true, // QR code for login
 	"ilink/bot/get_qrcode_status": true, // QR code scan status
-	"ilink/bot/getconfig":         true,
-	"ilink/bot/sendtyping":        true,
+	"ilink/bot/getconfig":         true, // Typing indicator pass through, agent will use this.
+	"ilink/bot/sendtyping":        true, // Typing indicator pass through, agent will use this.
 }
 
 // ProxyHandler handles HTTP requests from an AI gateway.

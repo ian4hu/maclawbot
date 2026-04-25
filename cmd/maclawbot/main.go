@@ -52,6 +52,17 @@ func main() {
 		log.Fatal("No ILINK_TOKEN set and no accounts configured!")
 	}
 
+	if len(accounts) == 0 {
+		log.Println("No accounts configured, using ILINK_TOKEN create default bot")
+		state.AddBot(router.Bot{
+			AccountID:    "default",
+			DefaultAgent: "default",
+			Enabled:      true,
+			Token:        cfg.ILinkToken,
+		})
+		accounts = state.GetEnabledBots()
+	}
+
 	// Initialize proxy manager and start all agent servers
 	pm := proxy.NewProxyManager(state, cfg.ILinkBaseURL, cfg.PollTimeout)
 	pm.StartAll()
@@ -68,12 +79,8 @@ func main() {
 
 	// Start the poll loop(s) in background
 	ctx, cancel := context.WithCancel(context.Background())
-	if len(accounts) > 0 {
-		for _, bot := range accounts {
-			go pollLoop(ctx, bot.Token, cfg.ILinkBaseURL, state, pm, time.Duration(cfg.PollTimeout)*time.Second)
-		}
-	} else if cfg.ILinkToken != "" {
-		go pollLoop(ctx, cfg.ILinkToken, cfg.ILinkBaseURL, state, pm, time.Duration(cfg.PollTimeout)*time.Second)
+	for _, bot := range accounts {
+		go pollLoop(ctx, bot.Token, cfg.ILinkBaseURL, state, pm, time.Duration(cfg.PollTimeout)*time.Second)
 	}
 
 	// Wait for shutdown signal
