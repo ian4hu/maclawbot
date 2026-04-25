@@ -82,7 +82,7 @@ func main() {
 	log.Println("================================================================================")
 
 	// Create message service (bridges poller, state, and proxy)
-	msgService := service.NewMessageService(state, pm)
+	msgService := service.NewMessageService(state, pm, cfg.ILinkBaseURL)
 
 	// Start the poll loop(s) in background — one per enabled bot
 	ctx, cancel := context.WithCancel(context.Background())

@@ -137,6 +137,79 @@ func (c *Client) GetUpdates(buf string, timeout time.Duration) (*GetUpdatesRespo
 	return &result, nil
 }
 
+// QRCodeResponse is the response from get_bot_qrcode.
+type QRCodeResponse struct {
+	QRCode           string `json:"qrcode"`             // QR code token for polling status
+	QRCodeImgContent string `json:"qrcode_img_content"` // URL to QR code image
+}
+
+// QRCodeStatusResponse is the response from get_qrcode_status.
+type QRCodeStatusResponse struct {
+	Status      string `json:"status"`       // "wait", "scaned", "confirmed", or "expired"
+	BotToken    string `json:"bot_token"`    // Present when status is "confirmed"
+	ILinkBotID  string `json:"ilink_bot_id"` // Present when status is "confirmed"
+	ILinkUserID string `json:"ilink_user_id"`
+	BaseURL     string `json:"baseurl"` // May differ from default; use this if present
+}
+
+// GetBotQRCode requests a new login QR code from iLink.
+// This is a GET request that does not require authentication.
+func (c *Client) GetBotQRCode() (*QRCodeResponse, error) {
+	url := c.BaseURL + "/ilink/bot/get_bot_qrcode?bot_type=3"
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("iLink-App-ClientVersion", ILINKCV)
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var result QRCodeResponse
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("parse qrcode response: %w", err)
+	}
+	return &result, nil
+}
+
+// GetQRCodeStatus polls the scan status of a QR code.
+// The qrcode parameter is the token returned by GetBotQRCode.
+// Blocks up to ~35s (server long-polls). Returns immediately on status change.
+func (c *Client) GetQRCodeStatus(qrcode string) (*QRCodeStatusResponse, error) {
+	url := c.BaseURL + "/ilink/bot/get_qrcode_status?qrcode=" + qrcode
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	// QR status check uses client version "1" per protocol spec
+	req.Header.Set("iLink-App-ClientVersion", "1")
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var result QRCodeStatusResponse
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("parse qrcode status: %w", err)
+	}
+	return &result, nil
+}
+
 // SendText sends a plain text message to a user through iLink.
 func (c *Client) SendText(toUser, text, ctx string) error {
 	// Generate unique client ID using timestamp + random bytes

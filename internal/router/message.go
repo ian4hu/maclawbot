@@ -32,6 +32,7 @@ const (
 type CmdResult struct {
 	Text      string // Response text to send back
 	IsHandled bool   // true if command was handled, false for passthrough
+	Action    string // Optional action trigger: "login" starts bot QR login flow
 }
 
 // ExtractText converts a message's item list to plain text.

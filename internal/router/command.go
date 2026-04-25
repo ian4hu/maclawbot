@@ -32,6 +32,12 @@ func processBotCommand(state *State, text string) CmdResult {
 		return CmdResult{Text: fmt.Sprintf("Bot **%s** removed.", botID), IsHandled: true}
 	case "set":
 		return handleSetBot(state, parts)
+	case "login":
+		return CmdResult{
+			Text:      "🔐 正在获取登录二维码...",
+			IsHandled: true,
+			Action:    "login",
+		}
 	default:
 		return listBots(state)
 	}
@@ -71,6 +77,7 @@ func listBots(state *State) CmdResult {
 	lines = append(lines, "- `/clawbot bot add <id> <token> [default_agent]` - Add bot")
 	lines = append(lines, "- `/clawbot bot del <id>` - Remove bot")
 	lines = append(lines, "- `/clawbot bot set <id> [default_agent]` - Set bot's default agent")
+	lines = append(lines, "- `/clawbot bot login` - Login new bot via QR code")
 
 	return CmdResult{Text: strings.Join(lines, "\n"), IsHandled: true}
 }
@@ -360,6 +367,13 @@ func formatClawbotHelp() string {
 		"`/clawbot new <name> [tag]` - Create new agent",
 		"`/clawbot del <name>` - Remove agent",
 		"`/clawbot info [name]` - Show agent info",
+		"",
+		"**Bot Commands:**",
+		"`/clawbot bot list` - List all bots",
+		"`/clawbot bot add <id> <token> [agent]` - Add bot",
+		"`/clawbot bot del <id>` - Remove bot",
+		"`/clawbot bot set <id> [agent]` - Set bot's default agent",
+		"`/clawbot bot login` - Login new bot via QR code",
 		"",
 		"**Examples:**",
 		"- `/clawbot new claude` - Create claude agent with default tag",

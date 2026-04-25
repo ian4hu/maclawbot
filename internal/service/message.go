@@ -18,16 +18,19 @@ import (
 //   - Welcome messages for new users
 //   - /clawbot commands
 //   - Routing non-command messages to the appropriate agent queue
+//   - Bot QR login flow
 type MessageService struct {
-	State *router.State
-	PM    *proxy.ProxyManager
+	State   *router.State
+	PM      *proxy.ProxyManager
+	BaseURL string // iLink API base URL (for QR login)
 }
 
 // NewMessageService creates a new MessageService.
-func NewMessageService(state *router.State, pm *proxy.ProxyManager) *MessageService {
+func NewMessageService(state *router.State, pm *proxy.ProxyManager, baseURL string) *MessageService {
 	return &MessageService{
-		State: state,
-		PM:    pm,
+		State:   state,
+		PM:      pm,
+		BaseURL: baseURL,
 	}
 }
 
@@ -67,6 +70,11 @@ func (s *MessageService) HandleMessage(bot *router.Bot, msg model.Message, clien
 		result := router.ProcessCommand(s.State, txt)
 		if result.IsHandled {
 			client.SendText(uid, result.Text, ctx)
+
+			// Handle special actions triggered by commands
+			if result.Action == "login" {
+				go StartBotLogin(s.BaseURL, uid, ctx, client, s.State)
+			}
 
 			// If agent was added or removed, update running servers
 			if hasPrefix(txt, "/clawbot new") || hasPrefix(txt, "/clawbot del") {
