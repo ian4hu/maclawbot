@@ -87,8 +87,6 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch ep {
 	case "ilink/bot/getupdates":
 		h.handleGetUpdates(w, r, body)
-	case "ilink/bot/sendmessage":
-		h.handleSendMessage(w, r, body)
 	default:
 		h.proxyPassthrough(w, r, ep, body)
 	}
@@ -165,19 +163,8 @@ func (h *ProxyHandler) handleGetUpdates(w http.ResponseWriter, r *http.Request, 
 	h.writeJSON(w, http.StatusOK, resp)
 }
 
-// handleSendMessage forwards outbound messages to iLink.
-// The gateway sends replies through this endpoint.
-// Token is looked up from state based on to_user_id in the request body.
-func (h *ProxyHandler) handleSendMessage(w http.ResponseWriter, r *http.Request, body []byte) {
-	var req map[string]interface{}
-	if len(body) > 0 {
-		json.Unmarshal(body, &req)
-	}
-
-	h.forwardToILink(w, r, "ilink/bot/sendmessage", req)
-}
-
-// proxyPassthrough forwards other endpoints directly to iLink without modification.
+// proxyPassthrough forwards allowed endpoints directly to iLink without modification.
+// Covers sendmessage, getuploadurl, getconfig, sendtyping, and other passthrough endpoints.
 func (h *ProxyHandler) proxyPassthrough(w http.ResponseWriter, r *http.Request, ep string, body []byte) {
 	var reqBody interface{}
 	if len(body) > 0 {
