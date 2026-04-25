@@ -9,7 +9,6 @@
 - **命令式切换** - 通过简单命令切换 Agent
 - **持久化配置** - Agent 配置和用户偏好保存到 JSON 文件
 - **协议兼容** - 完全兼容 iLink Bot API 协议
-- **Typing Indicator** - 自动显示"对方正在输入"状态，提升用户体验
 - **媒体支持** - 支持文本、语音、图片、视频、文件等多种消息类型
 - **线程安全** - 完整的并发控制和竞态检测
 
@@ -198,9 +197,7 @@ maclawbot/
 │   ├── config/                 # 配置加载（环境变量）
 │   │   └── config.go
 │   ├── ilink/                  # iLink API 客户端
-│   │   ├── client.go           # HTTP 客户端，请求头生成
-│   │   ├── typing.go           # Typing Indicator 管理器
-│   │   └── media.go            # AES-128-ECB 加解密工具
+│   │   └── client.go           # HTTP 客户端，请求头生成
 │   ├── proxy/                  # HTTP 代理服务器
 │   │   ├── proxy.go            # 代理处理器和管理器
 │   │   └── queue.go            # 线程安全消息队列
@@ -239,7 +236,7 @@ go build -o maclawbot ./cmd/maclawbot
 go build -ldflags="-s -w" -o maclawbot ./cmd/maclawbot
 
 # 查看版本信息
-go build -ldflags="-X main.Version=2.2.0" -o maclawbot ./cmd/maclawbot
+go build -ldflags="-X main.Version=2.1.0" -o maclawbot ./cmd/maclawbot
 ./maclawbot -version
 ```
 
