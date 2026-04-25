@@ -32,8 +32,10 @@ const (
 type CmdResult struct {
 	Text      string // Response text to send back
 	IsHandled bool   // true if command was handled, false for passthrough
-	Action    string // Optional action trigger: "login", "bot_add", "bot_del"
-	BotID     string // Bot ID associated with the action (for bot_add/bot_del)
+	Action    string // Optional action trigger: "login", "bot_add", "bot_del", "bot_setup"
+	BotID     string // Bot ID associated with the action
+	AgentName string // Agent name (for bot_setup)
+	RestartAgent bool   // Whether to restart agent after setup (for bot_setup)
 }
 
 // ExtractText converts a message's item list to plain text.

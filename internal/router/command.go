@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// processBotCommand handles /clawbot bot subcommands: list, add, del, set.
+// processBotCommand handles /clawbot bot subcommands: list, add, del, set, setup.
 func processBotCommand(state *State, text string) CmdResult {
 	parts := strings.Fields(text)
 	if len(parts) < 2 {
@@ -32,6 +32,8 @@ func processBotCommand(state *State, text string) CmdResult {
 		return CmdResult{Text: fmt.Sprintf("Bot **%s** removed.", botID), IsHandled: true, Action: "bot_del", BotID: botID}
 	case "set":
 		return handleSetBot(state, parts)
+	case "setup":
+		return handleBotSetup(state, parts)
 	case "login":
 		return CmdResult{
 			Text:      "🔐 正在获取登录二维码...",
@@ -77,6 +79,7 @@ func listBots(state *State) CmdResult {
 	lines = append(lines, "- `/clawbot bot add <id> <token> [default_agent]` - Add bot")
 	lines = append(lines, "- `/clawbot bot del <id>` - Remove bot")
 	lines = append(lines, "- `/clawbot bot set <id> [default_agent]` - Set bot's default agent")
+	lines = append(lines, "- `/clawbot bot setup <agent> <id> [--restart-agent]` - Configure bot for agent")
 	lines = append(lines, "- `/clawbot bot login` - Login new bot via QR code")
 
 	return CmdResult{Text: strings.Join(lines, "\n"), IsHandled: true}
@@ -148,6 +151,49 @@ func handleSetBot(state *State, parts []string) CmdResult {
 		botID, masked, bot.DefaultAgent, status), IsHandled: true}
 }
 
+// handleBotSetup sets up a bot's configuration for a specific agent.
+// Syntax: /clawbot bot setup <agent> <bot_id> [--restart-agent]
+func handleBotSetup(state *State, parts []string) CmdResult {
+	if len(parts) < 4 {
+		return CmdResult{Text: "Usage: /clawbot bot setup <agent> <bot_id> [--restart-agent]\nExample: /clawbot bot setup hermes 4f88d807d3a8@im.bot --restart-agent", IsHandled: true}
+	}
+
+	agentName := parts[2]
+	botID := parts[3]
+
+	// Validate agent exists
+	_, exists := state.GetAgent(agentName)
+	if !exists {
+		return CmdResult{Text: fmt.Sprintf("Error: agent %s not found. Create it first with /clawbot new", agentName), IsHandled: true}
+	}
+
+	// Validate bot exists
+	_, exists = state.GetBot(botID)
+	if !exists {
+		return CmdResult{Text: fmt.Sprintf("Error: bot %s not found", botID), IsHandled: true}
+	}
+
+	// Check for --restart-agent flag
+	restart := false
+	if len(parts) >= 5 && parts[4] == "--restart-agent" {
+		restart = true
+	}
+
+	restartMsg := ""
+	if restart {
+		restartMsg = ". Agent will be restarted after setup."
+	}
+
+	return CmdResult{
+		Text:         fmt.Sprintf("Setting up bot **%s** for agent **%s**%s", botID, agentName, restartMsg),
+		IsHandled:    true,
+		Action:       "bot_setup",
+		BotID:        botID,
+		AgentName:    agentName,
+		RestartAgent: restart,
+	}
+}
+
 // processClawbotCommand handles all /clawbot subcommands:
 // help, list, new, set, del, info.
 func processClawbotCommand(state *State, text string) CmdResult {
@@ -164,7 +210,7 @@ func processClawbotCommand(state *State, text string) CmdResult {
 	case "list":
 		return listAgents(state)
 	case "bot":
-		// Strip "/clawbot " prefix so parts[1] is the subcommand (add/list/del/set)
+		// Strip "/clawbot " prefix so parts[1] is the subcommand (add/list/del/set/setup)
 		accountText := strings.TrimPrefix(text, "/clawbot ")
 		return processBotCommand(state, accountText)
 	case "set":
@@ -373,6 +419,7 @@ func formatClawbotHelp() string {
 		"`/clawbot bot add <id> <token> [agent]` - Add bot",
 		"`/clawbot bot del <id>` - Remove bot",
 		"`/clawbot bot set <id> [agent]` - Set bot's default agent",
+		"`/clawbot bot setup <agent> <id> [--restart-agent]` - Configure bot for agent",
 		"`/clawbot bot login` - Login new bot via QR code",
 		"",
 		"**Examples:**",

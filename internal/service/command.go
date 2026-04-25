@@ -1,8 +1,13 @@
 package service
 
 import (
+	"fmt"
+	"log"
+
+	"maclawbot/internal/config"
 	"maclawbot/internal/event"
 	"maclawbot/internal/proxy"
+	"maclawbot/internal/ilink"
 	"maclawbot/internal/router"
 )
 
@@ -65,6 +70,8 @@ func (c *CommandSubscriber) OnEvent(e interface{}) {
 		}
 	case "bot_del":
 		c.bus.Publish(event.BotRemovedEvent{BotID: result.BotID})
+	case "bot_setup":
+		c.handleBotSetup(result, uid, ctx, msg.Client)
 	case "login":
 		go StartBotLogin(c.baseURL, uid, ctx, msg.Client, c.state, c.bus)
 	}
@@ -72,5 +79,35 @@ func (c *CommandSubscriber) OnEvent(e interface{}) {
 	// If agent was added or removed, update running servers
 	if hasPrefix(txt, "/clawbot new") || hasPrefix(txt, "/clawbot del") {
 		HandleAgentChange(c.state, c.pm)
+	}
+}
+
+// handleBotSetup writes agent config and optionally restarts the agent.
+func (c *CommandSubscriber) handleBotSetup(result router.CmdResult, uid, ctx string, client *ilink.Client) {
+	bot, ok := c.state.GetBot(result.BotID)
+	if !ok {
+		client.SendText(uid, fmt.Sprintf("Error: bot %s not found", result.BotID), ctx)
+		return
+	}
+
+	agent, ok := c.state.GetAgent(result.AgentName)
+	if !ok {
+		client.SendText(uid, fmt.Sprintf("Error: agent %s not found", result.AgentName), ctx)
+		return
+	}
+
+	cfgFile, err := SetupAgentConfig(bot, agent, config.Load().ILinkBaseURL)
+	if err != nil {
+		client.SendText(uid, fmt.Sprintf("Error setting up config: %v", err), ctx)
+		return
+	}
+
+	log.Printf("bot_setup: wrote config for bot=%s agent=%s to %s", bot.BotID, agent.Name, cfgFile)
+
+	if result.RestartAgent {
+		HandleAgentChange(c.state, c.pm)
+		client.SendText(uid, fmt.Sprintf("Bot **%s** configured for **%s** and agent restarted.\nConfig: `%s`", bot.BotID, agent.Name, cfgFile), ctx)
+	} else {
+		client.SendText(uid, fmt.Sprintf("Bot **%s** configured for **%s**.\nConfig: `%s`", bot.BotID, agent.Name, cfgFile), ctx)
 	}
 }
