@@ -125,26 +125,30 @@ Agent **claude** created on port **20001** (tag: [Claude Code]).
 ## 架构
 
 ```
-                     iLink API
-                        |
-               MAClawBot (轮询持有 token)
-                        |
-        ┌───────────────┼───────────────┐
-        │               │               │
-   127.0.0.1      127.0.0.1      127.0.0.1
-     :19998         :19999         :20000
-     Hermes        OpenClaw        Claude
-        │               │               │
-        └───────────────┴───────────────┘
-                        │
-                  各自 Gateway
-                  (认为直连 iLink)
+               微信ClawBot #1    微信ClawBot #2    微信ClawBot #N
+                     │               │               │
+                     └───────────────┼───────────────┘
+                                     │
+                                 iLink API
+                                     │
+                        MAClawBot (轮询多个Bot的token)
+                                     │
+              ┌──────────────────────┼──────────────────────┐
+              │                      │                      │
+         127.0.0.1              127.0.0.1              127.0.0.1
+           :19998                 :19999                 :20000
+           Hermes                 OpenClaw               Claude
+              │                      │                      │
+              └──────────────────────┴──────────────────────┘
+                                     │
+                               各自 Gateway
+                          (认为直连 iLink)
 ```
 
 ### 工作原理
 
 1. **MAClawBot** 作为唯一的 iLink Token 持有者，持续轮询 iLink 获取消息
-2. 收到消息后，根据用户的设置路由到对应的 Agent 队列
+2. 收到消息后，根据Bot的设置路由到对应的 Agent 队列
 3. 每个 Agent 有独立的本地 HTTP 代理服务器，监听不同端口
 4. Agent Gateway 连接对应的代理端口，认为自己在直连 iLink
 5. Agent 的回复通过代理服务器转发回 iLink
