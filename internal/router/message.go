@@ -135,7 +135,7 @@ func processAccountCommand(state *State, text string) CmdResult {
 		return handleAddAccount(state, parts)
 	case "del":
 		if len(parts) < 3 {
-			return CmdResult{Text: "Usage: /account del <account_id>", IsHandled: true}
+			return CmdResult{Text: "Usage: /clawbot account del <account_id>", IsHandled: true}
 		}
 		accountID := parts[2]
 		if err := state.RemoveAccount(accountID); err != nil {
@@ -179,19 +179,19 @@ func listAccounts(state *State) CmdResult {
 
 	lines = append(lines, "")
 	lines = append(lines, "**Commands:**")
-	lines = append(lines, "- `/account list` - List all accounts")
-	lines = append(lines, "- `/account add <id> <token> [default_agent]` - Add account")
-	lines = append(lines, "- `/account del <id>` - Remove account")
-	lines = append(lines, "- `/account set <id> [default_agent]` - Set account's default agent")
+	lines = append(lines, "- `/clawbot account list` - List all accounts")
+	lines = append(lines, "- `/clawbot account add <id> <token> [default_agent]` - Add account")
+	lines = append(lines, "- `/clawbot account del <id>` - Remove account")
+	lines = append(lines, "- `/clawbot account set <id> [default_agent]` - Set account's default agent")
 
 	return CmdResult{Text: strings.Join(lines, "\n"), IsHandled: true}
 }
 
 // handleAddAccount creates a new account.
-// Syntax: /account add <account_id> <token> [default_agent]
+// Syntax: /clawbot account add <account_id> <token> [default_agent]
 func handleAddAccount(state *State, parts []string) CmdResult {
 	if len(parts) < 4 {
-		return CmdResult{Text: "Usage: /account add <account_id> <token> [default_agent]\nExample: /account add botA xb2c...mhk4 hermes", IsHandled: true}
+		return CmdResult{Text: "Usage: /clawbot account add <account_id> <token> [default_agent]\nExample: /clawbot account add botA xb2c...mhk4 hermes", IsHandled: true}
 	}
 
 	accountID := parts[2]
@@ -219,10 +219,10 @@ func handleAddAccount(state *State, parts []string) CmdResult {
 }
 
 // handleSetAccount updates account settings.
-// Syntax: /account set <account_id> [default_agent]
+// Syntax: /clawbot account set <account_id> [default_agent]
 func handleSetAccount(state *State, parts []string) CmdResult {
 	if len(parts) < 3 {
-		return CmdResult{Text: "Usage: /account set <account_id> [default_agent]\nExample: /account set botA claude", IsHandled: true}
+		return CmdResult{Text: "Usage: /clawbot account set <account_id> [default_agent]\nExample: /clawbot account set botA claude", IsHandled: true}
 	}
 
 	accountID := parts[2]
@@ -319,7 +319,7 @@ func handleSetAgent(state *State, parts []string) CmdResult {
 		// Default to first account if any exist
 		accounts := state.GetAccounts()
 		if len(accounts) == 0 {
-			return CmdResult{Text: "Error: no accounts configured. Add an account first with /account add", IsHandled: true}
+			return CmdResult{Text: "Error: no accounts configured. Add an account first with /clawbot account add", IsHandled: true}
 		}
 		targetAccount = accounts[0].AccountID
 	}
