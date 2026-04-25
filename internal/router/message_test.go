@@ -44,7 +44,7 @@ func TestProcessCommand_ClawbotSet(t *testing.T) {
 	defer os.Remove(tmpFile)
 
 	state := NewState(tmpFile)
-	if err := state.AddBot(Bot{AccountID: "test_account"}); err != nil {
+	if err := state.AddBot(Bot{BotID: "test_account"}); err != nil {
 		t.Fatalf("Failed to add account: %v", err)
 	}
 
@@ -167,7 +167,7 @@ func TestProcessCommand_CaseInsensitive(t *testing.T) {
 	defer os.Remove(tmpFile)
 
 	state := NewState(tmpFile)
-	if err := state.AddBot(Bot{AccountID: "test_account"}); err != nil {
+	if err := state.AddBot(Bot{BotID: "test_account"}); err != nil {
 		t.Fatalf("Failed to add account: %v", err)
 	}
 

@@ -47,7 +47,7 @@ func TestNewState_LoadsExistingState(t *testing.T) {
 
 	// Create initial state
 	state1 := NewState(tmpFile)
-	
+
 	// Add a custom agent
 	agent := Agent{
 		Name:    "claude",
@@ -159,7 +159,7 @@ func TestSetDefaultAgent(t *testing.T) {
 	defer os.Remove(tmpFile)
 
 	state := NewState(tmpFile)
-	if err := state.AddBot(Bot{AccountID: "test_account"}); err != nil {
+	if err := state.AddBot(Bot{BotID: "test_account"}); err != nil {
 		t.Fatalf("Failed to add account: %v", err)
 	}
 
@@ -221,7 +221,7 @@ func TestShouldShowStatus(t *testing.T) {
 	defer os.Remove(tmpFile)
 
 	state := NewState(tmpFile)
-	if err := state.AddBot(Bot{AccountID: "test_account"}); err != nil {
+	if err := state.AddBot(Bot{BotID: "test_account"}); err != nil {
 		t.Fatalf("Failed to add account: %v", err)
 	}
 
@@ -246,7 +246,7 @@ func TestConcurrentStateAccess(t *testing.T) {
 	defer os.Remove(tmpFile)
 
 	state := NewState(tmpFile)
-	if err := state.AddBot(Bot{AccountID: "test_account"}); err != nil {
+	if err := state.AddBot(Bot{BotID: "test_account"}); err != nil {
 		t.Fatalf("Failed to add account: %v", err)
 	}
 

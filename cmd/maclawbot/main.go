@@ -59,7 +59,7 @@ func main() {
 	if cfg.ILinkBaseURL != "" && !hasDefaultBot && !tokenUsed {
 		log.Println("No default bot configured, using ILINK_TOKEN create default bot")
 		state.AddBot(router.Bot{
-			AccountID:    "default",
+			BotID:        "default",
 			DefaultAgent: "",
 			Enabled:      true,
 			Token:        cfg.ILinkToken,

@@ -46,7 +46,7 @@ func (s *MessageService) HandleMessage(bot *router.Bot, msg model.Message, clien
 		return
 	}
 
-	log.Printf("Msg bot=%s from=%s... items=%d", bot.AccountID, uid[:minStr(16, len(uid))], len(msg.ItemList))
+	log.Printf("Msg bot=%s from=%s... items=%d", bot.BotID, uid[:minStr(16, len(uid))], len(msg.ItemList))
 
 	txt := router.ExtractText(msg.ItemList)
 
@@ -84,7 +84,7 @@ func (s *MessageService) HandleMessage(bot *router.Bot, msg model.Message, clien
 		}
 	}
 
-	s.PM.Enqueue(bot.AccountID, bot.DefaultAgent, msg)
+	s.PM.Enqueue(bot.BotID, bot.DefaultAgent, msg)
 }
 
 // ---- utility functions ----

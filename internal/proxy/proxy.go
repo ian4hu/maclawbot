@@ -139,7 +139,7 @@ func (h *ProxyHandler) handleGetUpdates(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	queueName := bot.AccountID + "_" + h.agent.Name
+	queueName := bot.BotID + "_" + h.agent.Name
 
 	// Get the queue for this account+agent
 	queue := h.pm.GetQueue(queueName)
@@ -301,7 +301,7 @@ func (h *ProxyHandler) getQueueName(r *http.Request) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	queueName := bot.AccountID + "_" + h.agent.Name
+	queueName := bot.BotID + "_" + h.agent.Name
 	return queueName, nil
 }
 

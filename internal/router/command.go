@@ -67,7 +67,7 @@ func listBots(state *State) CmdResult {
 			}
 			masked := maskToken(bot.Token)
 			lines = append(lines, fmt.Sprintf("- **%s** (token: `%s`, default: %s, %s)",
-				bot.AccountID, masked, bot.DefaultAgent, status))
+				bot.BotID, masked, bot.DefaultAgent, status))
 		}
 	}
 
@@ -101,7 +101,7 @@ func handleAddBot(state *State, parts []string) CmdResult {
 	}
 
 	bot := Bot{
-		AccountID:    botID,
+		BotID:        botID,
 		Token:        token,
 		DefaultAgent: defaultAgent,
 		Enabled:      true,
@@ -195,10 +195,10 @@ func processClawbotCommand(state *State, text string) CmdResult {
 }
 
 // handleSetAgent sets the default agent for an account.
-// Syntax: /clawbot set <agent_name> [account_id]
+// Syntax: /clawbot set <agent_name> [bot_id]
 func handleSetAgent(state *State, parts []string) CmdResult {
 	if len(parts) < 3 {
-		return CmdResult{Text: "Usage: /clawbot set <agent_name> [account_id]\nExample: /clawbot set claude", IsHandled: true}
+		return CmdResult{Text: "Usage: /clawbot set <agent_name> [bot_id]\nExample: /clawbot set claude", IsHandled: true}
 	}
 
 	agentName := parts[2]
@@ -215,7 +215,7 @@ func handleSetAgent(state *State, parts []string) CmdResult {
 		if len(bots) == 0 {
 			return CmdResult{Text: "Error: no bots configured. Add a bot first with /clawbot bot add", IsHandled: true}
 		}
-		targetBot = bots[0].AccountID
+		targetBot = bots[0].BotID
 	}
 
 	if err := state.SetBotDefaultAgent(targetBot, agentName); err != nil {
@@ -301,7 +301,7 @@ func listAgents(state *State) CmdResult {
 		defaultBots := []string{}
 		for _, bot := range bots {
 			if bot.DefaultAgent == name {
-				defaultBots = append(defaultBots, bot.AccountID)
+				defaultBots = append(defaultBots, bot.BotID)
 			}
 		}
 		if len(defaultBots) > 0 {
@@ -338,7 +338,7 @@ func formatAgentInfo(state *State, agentName string) string {
 	defaultBots := []string{}
 	for _, bot := range bots {
 		if bot.DefaultAgent == agentName {
-			defaultBots = append(defaultBots, bot.AccountID)
+			defaultBots = append(defaultBots, bot.BotID)
 		}
 	}
 

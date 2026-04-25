@@ -10,10 +10,10 @@ import (
 // Bot represents a WeChat bot account.
 // Each account has its own iLink token and can be independently enabled/disabled.
 type Bot struct {
-	AccountID   string `json:"account_id"`             // Unique identifier (iLink ToUserID of the bot)
-	Token       string `json:"token"`                 // iLink authentication token for this account
-	DefaultAgent string `json:"default_agent"`        // Default agent for this account
-	Enabled     bool   `json:"enabled"`              // Whether this account's poll loop is active
+	BotID        string `json:"bot_id"`        // Unique identifier (iLink ToUserID of the bot)
+	Token        string `json:"token"`         // iLink authentication token for this account
+	DefaultAgent string `json:"default_agent"` // Default agent for this account
+	Enabled      bool   `json:"enabled"`       // Whether this account's poll loop is active
 }
 
 // Agent represents a configured AI agent gateway.
@@ -33,11 +33,11 @@ type StatusShown map[string]map[string]bool
 // State manages accounts, agents, and user preferences with thread-safe access.
 // All changes are persisted to a JSON file for durability across restarts.
 type State struct {
-	filepath    string              // Path to the persisted state file
-	mu          sync.RWMutex       // Read-write lock for concurrent access
-	bots    []Bot          // All configured accounts (ordered for stable iteration)
-	agents      map[string]Agent   // All configured agents, keyed by name
-	statusShown StatusShown        // Tracks which users have seen welcome message per account
+	filepath    string           // Path to the persisted state file
+	mu          sync.RWMutex     // Read-write lock for concurrent access
+	bots        []Bot            // All configured accounts (ordered for stable iteration)
+	agents      map[string]Agent // All configured agents, keyed by name
+	statusShown StatusShown      // Tracks which users have seen welcome message per account
 }
 
 // NewState creates a new State instance, loading persisted data if available.
@@ -85,9 +85,9 @@ func (s *State) load() {
 	}
 
 	var raw struct {
-		Accounts     []Bot   `json:"accounts"`
+		Accounts    []Bot            `json:"accounts"`
 		Agents      map[string]Agent `json:"agents"`
-		StatusShown StatusShown  `json:"status_shown"`
+		StatusShown StatusShown      `json:"status_shown"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return // Corrupted file, use defaults
@@ -114,11 +114,11 @@ func (s *State) save() {
 // saveLocked writes the current state to disk. Must be called with s.mu held.
 func (s *State) saveLocked() {
 	data := struct {
-		Accounts     []Bot          `json:"accounts"`
-		Agents      map[string]Agent  `json:"agents"`
-		StatusShown StatusShown       `json:"status_shown"`
+		Accounts    []Bot            `json:"accounts"`
+		Agents      map[string]Agent `json:"agents"`
+		StatusShown StatusShown      `json:"status_shown"`
 	}{
-		Accounts:     s.bots,
+		Accounts:    s.bots,
 		Agents:      s.agents,
 		StatusShown: s.statusShown,
 	}
@@ -218,7 +218,7 @@ func (s *State) GetBot(botID string) (Bot, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, b := range s.bots {
-		if b.AccountID == botID {
+		if b.BotID == botID {
 			return b, true
 		}
 	}
@@ -237,13 +237,13 @@ func (s *State) GetBotByToken(token string) (Bot, bool) {
 	return Bot{}, false
 }
 
-// AddBot adds a new bot. Returns error if account_id already exists.
+// AddBot adds a new bot. Returns error if bot_id already exists.
 func (s *State) AddBot(bot Bot) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, b := range s.bots {
-		if b.AccountID == bot.AccountID {
-			return fmt.Errorf("bot %s already exists", bot.AccountID)
+		if b.BotID == bot.BotID {
+			return fmt.Errorf("bot %s already exists", bot.BotID)
 		}
 	}
 	// Default to hermes as default agent if not set
@@ -255,12 +255,12 @@ func (s *State) AddBot(bot Bot) error {
 	return nil
 }
 
-// RemoveBot removes a bot by account_id. Returns error if not found.
+// RemoveBot removes a bot by bot_id. Returns error if not found.
 func (s *State) RemoveBot(botID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i, b := range s.bots {
-		if b.AccountID == botID {
+		if b.BotID == botID {
 			s.bots = append(s.bots[:i], s.bots[i+1:]...)
 			s.saveLocked()
 			return nil
@@ -277,7 +277,7 @@ func (s *State) SetBotDefaultAgent(botID, agentName string) error {
 		return fmt.Errorf("agent %s not found", agentName)
 	}
 	for i, b := range s.bots {
-		if b.AccountID == botID {
+		if b.BotID == botID {
 			s.bots[i].DefaultAgent = agentName
 			s.saveLocked()
 			return nil
@@ -291,7 +291,7 @@ func (s *State) SetBotEnabled(botID string, enabled bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i, b := range s.bots {
-		if b.AccountID == botID {
+		if b.BotID == botID {
 			s.bots[i].Enabled = enabled
 			s.saveLocked()
 			return nil
@@ -306,7 +306,7 @@ func (s *State) GetDefaultAgentForBot(botID string) string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, b := range s.bots {
-		if b.AccountID == botID && b.DefaultAgent != "" {
+		if b.BotID == botID && b.DefaultAgent != "" {
 			return b.DefaultAgent
 		}
 	}

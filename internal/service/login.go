@@ -92,7 +92,7 @@ func StartBotLogin(baseURL, uid, ctxToken string, client *ilink.Client, state *r
 
 			// Add the new bot to state
 			bot := router.Bot{
-				AccountID:    botID,
+				BotID:        botID,
 				Token:        token,
 				DefaultAgent: "hermes",
 				Enabled:      true,
