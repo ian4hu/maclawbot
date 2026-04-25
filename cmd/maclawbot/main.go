@@ -14,9 +14,10 @@ import (
 	"github.com/joho/godotenv"
 
 	"maclawbot/internal/config"
-	"maclawbot/internal/ilink"
+	"maclawbot/internal/poller"
 	"maclawbot/internal/proxy"
 	"maclawbot/internal/router"
+	"maclawbot/internal/service"
 )
 
 var (
@@ -80,10 +81,14 @@ func main() {
 	}
 	log.Println("================================================================================")
 
-	// Start the poll loop(s) in background
+	// Create message service (bridges poller, state, and proxy)
+	msgService := service.NewMessageService(state, pm)
+
+	// Start the poll loop(s) in background — one per enabled bot
 	ctx, cancel := context.WithCancel(context.Background())
 	for _, bot := range bots {
-		go pollLoop(ctx, &bot, cfg.ILinkBaseURL, state, pm, time.Duration(cfg.PollTimeout)*time.Second)
+		p := poller.New(&bot, cfg.ILinkBaseURL, msgService, time.Duration(cfg.PollTimeout)*time.Second)
+		go p.Run(ctx)
 	}
 
 	// Wait for shutdown signal
@@ -95,160 +100,6 @@ func main() {
 	cancel()
 	pm.StopAll()
 	log.Println("Stopped")
-}
-
-// pollLoop continuously polls iLink for new messages and routes them to agents.
-// Implements exponential backoff on errors to prevent hammering the API.
-// One pollLoop is started per enabled account.
-func pollLoop(ctx context.Context, bot *router.Bot, baseURL string, state *router.State, pm *proxy.ProxyManager, pollTimeout time.Duration) {
-	const (
-		maxFails = 3                // Max consecutive failures before backoff
-		backoff  = 30 * time.Second // Backoff duration after max failures
-	)
-
-	client := ilink.NewClient(baseURL, bot.Token)
-
-	buf := ""
-	fails := 0
-	pollTimeoutHTTP := pollTimeout + 5*time.Second // HTTP timeout slightly longer than iLink timeout
-
-	for {
-		select {
-		case <-ctx.Done():
-			return // Shutdown requested
-		default:
-		}
-
-		// Poll iLink for updates
-		resp, err := client.GetUpdates(buf, pollTimeoutHTTP)
-		if err != nil {
-			log.Printf("getUpdates error: %v", err)
-			fails++
-			fails = handleFailure(fails, maxFails, backoff)
-			continue
-		}
-
-		// Check for API errors
-		if resp.Ret != 0 || resp.ErrCode != 0 {
-			log.Printf("getUpdates err: ret=%d ec=%d", resp.Ret, resp.ErrCode)
-			fails++
-			fails = handleFailure(fails, maxFails, backoff)
-			continue
-		}
-
-		// Success - reset failure counter
-		fails = 0
-		if resp.GetUpdatesBuf != "" {
-			buf = resp.GetUpdatesBuf // Update cursor for next poll
-		}
-
-		// Process each incoming message
-		for _, msg := range resp.Msgs {
-			procMsg(bot, msg, client, state, pm)
-		}
-	}
-}
-
-// handleFailure manages error backoff logic.
-// Returns the updated failure count.
-func handleFailure(fails, maxFails int, backoff time.Duration) int {
-	if fails >= maxFails {
-		time.Sleep(backoff)
-		return 0 // Reset after backoff
-	}
-	time.Sleep(2 * time.Second)
-	return fails
-}
-
-// procMsg processes a single incoming message from iLink.
-// Handles commands, shows welcome message to new users, and routes to agents.
-func procMsg(bot *router.Bot, msg router.Message, client *ilink.Client, state *router.State, pm *proxy.ProxyManager) {
-	accountID := msg.ToUserID
-	uid := msg.FromUserID
-	ctx := msg.ContextToken
-
-	// Only process incoming messages (type 1)
-	if msg.MessageType != 1 {
-		return
-	}
-
-	log.Printf("Msg bot=%s from=%s... items=%d", bot.AccountID, uid[:min(16, len(uid))], len(msg.ItemList))
-
-	txt := router.ExtractText(msg.ItemList)
-
-	// Check if message has any content
-	hasAny := txt != "" || hasNonZeroType(msg.ItemList)
-	if !hasAny {
-		return
-	}
-
-	// Show welcome message to new users (non-command messages)
-	if state.ShouldShowStatus(accountID, uid) && !hasPrefix(txt, "/") {
-		// Build welcome message directly instead of using /whoami command
-		defaultAgent := state.GetDefaultAgentForBot(accountID)
-		agent, _ := state.GetAgent(defaultAgent)
-		welcomeMsg := fmt.Sprintf("**MAClawBot** by Github @ian4hu\n**Current agent**: **%s** (port %d)\n\n**Commands:**\n- `/clawbot` - Show clawbot help\n- `/clawbot list` - List all agents\n- `/clawbot new <name>` - Create new agent\n- `/clawbot set <name>` - Switch to agent", defaultAgent, agent.Port)
-		client.SendText(uid, welcomeMsg, ctx)
-		state.MarkStatusShown(accountID, uid)
-	}
-
-	// Handle slash commands
-	if hasPrefix(txt, "/clawbot") {
-		result := router.ProcessCommand(state, txt)
-		if result.IsHandled {
-			client.SendText(uid, result.Text, ctx)
-
-			// If agent was added or removed, update running servers
-			if hasPrefix(txt, "/clawbot new") || hasPrefix(txt, "/clawbot del") {
-				handleAgentChange(state, pm)
-			}
-			return
-		}
-	}
-
-	pm.Enqueue(bot.AccountID, bot.DefaultAgent, msg)
-}
-
-// handleAgentChange ensures proxy servers match the configured agents.
-// Called after /clawbot new or /clawbot del commands.
-func handleAgentChange(state *router.State, pm *proxy.ProxyManager) {
-	agents := state.GetAgents()
-
-	// Start servers for agents that don't have one running
-	for name, agent := range agents {
-		if pm.GetQueue(name) == nil && agent.Enabled {
-			pm.OnAgentAdded(agent)
-		}
-	}
-
-	// Stop servers for agents that were removed from state
-	for _, name := range pm.GetActiveAgents() {
-		if _, exists := agents[name]; !exists {
-			pm.OnAgentRemoved(name)
-		}
-	}
-}
-
-// Utility functions
-
-func hasNonZeroType(items []router.Item) bool {
-	for _, it := range items {
-		if it.Type != 0 {
-			return true
-		}
-	}
-	return false
-}
-
-func hasPrefix(s, prefix string) bool {
-	return len(s) >= len(prefix) && s[:len(prefix)] == prefix
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 func getWorkDir() string {

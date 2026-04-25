@@ -1,5 +1,5 @@
 *.log
 *.json
 .env
-maclawbot
+/maclawbot
 proxy.test

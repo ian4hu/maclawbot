@@ -28,13 +28,20 @@ var allowedEndpoints = map[string]bool{
 	"ilink/bot/sendtyping":        true, // Typing indicator pass through, agent will use this.
 }
 
+// BotResolver abstracts bot token/name lookups.
+// This allows the proxy handler to remain decoupled from the full router.State.
+type BotResolver interface {
+	GetBot(name string) (router.Bot, bool)
+	GetBotByToken(token string) (router.Bot, bool)
+}
+
 // ProxyHandler handles HTTP requests from an AI gateway.
 // It queues incoming messages for the router and forwards outbound messages to iLink.
 // One ProxyHandler instance is shared across all accounts that use the same agent.
 // Account context is determined by X-Queue-Name header or to_user_id in request body.
 type ProxyHandler struct {
 	pm           *ProxyManager // Reference to proxy manager for queue lookup
-	State        *router.State // Shared state for access control
+	botResolver  BotResolver   // Resolves bot info from token or name
 	ILinkBaseURL string        // iLink API base URL
 	PollTimeout  time.Duration // Max time to wait for messages in queue
 	agent        *router.Agent
@@ -43,10 +50,10 @@ type ProxyHandler struct {
 // NewProxyHandler creates a new proxy handler for an agent.
 // One handler instance is shared across all accounts using this agent.
 // The pm reference allows queue lookup by accountID_agentName.
-func NewProxyHandler(pm *ProxyManager, state *router.State, ilinkBaseURL string, pollTimeout time.Duration, agent *router.Agent) *ProxyHandler {
+func NewProxyHandler(pm *ProxyManager, botResolver BotResolver, ilinkBaseURL string, pollTimeout time.Duration, agent *router.Agent) *ProxyHandler {
 	return &ProxyHandler{
 		pm:           pm,
-		State:        state,
+		botResolver:  botResolver,
 		ILinkBaseURL: ilinkBaseURL,
 		PollTimeout:  pollTimeout,
 		agent:        agent,
@@ -116,14 +123,14 @@ func (h *ProxyHandler) handleGetUpdates(w http.ResponseWriter, r *http.Request, 
 	}
 
 	// By default, the token should be the bot name.
-	bot, ok := h.State.GetBot(token)
+	bot, ok := h.botResolver.GetBot(token)
 	if !ok {
 		// Try get bot by token
-		bot, ok = h.State.GetBotByToken(token)
+		bot, ok = h.botResolver.GetBotByToken(token)
 	}
 	if !ok {
 		// Try get the defualt bot
-		bot, ok = h.State.GetBot("default")
+		bot, ok = h.botResolver.GetBot("default")
 	}
 
 	if !ok {
@@ -273,14 +280,14 @@ func (h *ProxyHandler) getBot(r *http.Request) (router.Bot, error) {
 	}
 
 	// By default, the token should be the bot name.
-	bot, ok := h.State.GetBot(token)
+	bot, ok := h.botResolver.GetBot(token)
 	if !ok {
 		// Try get bot by token
-		bot, ok = h.State.GetBotByToken(token)
+		bot, ok = h.botResolver.GetBotByToken(token)
 	}
 	if !ok {
 		// Try get the defualt bot
-		bot, ok = h.State.GetBot("default")
+		bot, ok = h.botResolver.GetBot("default")
 	}
 
 	if !ok {
