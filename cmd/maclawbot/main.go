@@ -203,14 +203,22 @@ func procMsg(msg router.Message, client *ilink.Client, state *router.State, pm *
 	}
 }
 
-// handleAgentChange ensures proxy servers are running for all configured agents.
+// handleAgentChange ensures proxy servers match the configured agents.
 // Called after /clawbot new or /clawbot del commands.
 func handleAgentChange(state *router.State, pm *proxy.ProxyManager) {
 	agents := state.GetAgents()
+
+	// Start servers for agents that don't have one running
 	for name, agent := range agents {
 		if pm.GetQueue(name) == nil && agent.Enabled {
-			// Start server for newly added agent
 			pm.OnAgentAdded(agent)
+		}
+	}
+
+	// Stop servers for agents that were removed from state
+	for _, name := range pm.GetActiveAgents() {
+		if _, exists := agents[name]; !exists {
+			pm.OnAgentRemoved(name)
 		}
 	}
 }

@@ -223,6 +223,17 @@ func (pm *ProxyManager) GetQueue(agentName string) *MessageQueue {
 	return pm.queues[agentName]
 }
 
+// GetActiveAgents returns names of agents with running proxy servers.
+func (pm *ProxyManager) GetActiveAgents() []string {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+	names := make([]string, 0, len(pm.servers))
+	for name := range pm.servers {
+		names = append(names, name)
+	}
+	return names
+}
+
 // StartAgent starts the HTTP proxy server for an agent.
 // Creates a new message queue and HTTP server listening on the agent's port.
 func (pm *ProxyManager) StartAgent(agent router.Agent) error {
