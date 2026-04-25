@@ -3,6 +3,7 @@ package router
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"sync"
 )
@@ -90,6 +91,7 @@ func (s *State) load() {
 		StatusShown StatusShown      `json:"status_shown"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
+		log.Printf("ERROR: failed to parse state file %s: %v", s.filepath, err)
 		return // Corrupted file, use defaults
 	}
 
@@ -125,11 +127,13 @@ func (s *State) saveLocked() {
 
 	jsonData, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
+		log.Printf("ERROR: failed to marshal state for %s: %v", s.filepath, err)
 		return
 	}
 
 	tmp := s.filepath + ".tmp"
 	if err := os.WriteFile(tmp, jsonData, 0644); err != nil {
+		log.Printf("ERROR: failed to write state file %s.tmp: %v", s.filepath, err)
 		return
 	}
 	os.Rename(tmp, s.filepath)

@@ -127,7 +127,7 @@ func (h *ProxyHandler) handleGetUpdates(w http.ResponseWriter, r *http.Request, 
 		bot, ok = h.botResolver.GetBotByToken(token)
 	}
 	if !ok {
-		// Try get the defualt bot
+		// Try get the default bot
 		bot, ok = h.botResolver.GetBot("default")
 	}
 
@@ -273,12 +273,12 @@ func (h *ProxyHandler) getBot(r *http.Request) (router.Bot, error) {
 		bot, ok = h.botResolver.GetBotByToken(token)
 	}
 	if !ok {
-		// Try get the defualt bot
+		// Try get the default bot
 		bot, ok = h.botResolver.GetBot("default")
 	}
 
 	if !ok {
-		return bot, fmt.Errorf("bot not found")
+		return router.Bot{}, fmt.Errorf("bot not found")
 	}
 	return bot, nil
 }
