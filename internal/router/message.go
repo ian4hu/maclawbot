@@ -111,11 +111,6 @@ func ExtractText(items []Item) string {
 func ProcessCommand(state *State, text string) CmdResult {
 	text = strings.TrimSpace(strings.ToLower(text))
 
-	// Handle /account subcommands
-	if strings.HasPrefix(text, "/account") {
-		return processAccountCommand(state, text)
-	}
-
 	// Handle /clawbot subcommands
 	if strings.HasPrefix(text, "/clawbot") {
 		return processClawbotCommand(state, text)
@@ -123,8 +118,6 @@ func ProcessCommand(state *State, text string) CmdResult {
 
 	return CmdResult{IsHandled: false}
 }
-
-// processAccountCommand handles all /account subcommands: list, add, del, set
 func processAccountCommand(state *State, text string) CmdResult {
 	parts := strings.Fields(text)
 	if len(parts) < 2 {
@@ -275,6 +268,10 @@ func processClawbotCommand(state *State, text string) CmdResult {
 		return CmdResult{Text: formatClawbotHelp(), IsHandled: true}
 	case "list":
 		return listAgents(state)
+	case "account":
+		// Strip "/clawbot " prefix so parts[1] is the subcommand (add/list/del/set)
+		accountText := strings.TrimPrefix(text, "/clawbot ")
+		return processAccountCommand(state, accountText)
 	case "set":
 		return handleSetAgent(state, parts)
 	case "new":
