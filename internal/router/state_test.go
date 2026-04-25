@@ -282,3 +282,272 @@ func TestConcurrentStateAccess(t *testing.T) {
 	<-done
 	<-done
 }
+
+// TestGetBot tests GetBot lookup and not-found path.
+func TestGetBot(t *testing.T) {
+	tmpFile := "/tmp/test_state_getbot.json"
+	defer os.Remove(tmpFile)
+
+	state := NewState(tmpFile)
+
+	// Not found
+	_, ok := state.GetBot("nonexistent")
+	if ok {
+		t.Error("expected not found for nonexistent bot")
+	}
+
+	// Add bots with the same Token to test GetBotByToken
+	botA := Bot{BotID: "botA", Token: "tokA", DefaultAgent: "hermes", Enabled: true}
+	botB := Bot{BotID: "botB", Token: "tokB", DefaultAgent: "openclaw", Enabled: false}
+	if err := state.AddBot(botA); err != nil {
+		t.Fatalf("AddBot botA: %v", err)
+	}
+	if err := state.AddBot(botB); err != nil {
+		t.Fatalf("AddBot botB: %v", err)
+	}
+
+	// Found by ID
+	b, ok := state.GetBot("botA")
+	if !ok {
+		t.Fatal("expected botA to be found")
+	}
+	if b.DefaultAgent != "hermes" || b.Token != "tokA" {
+		t.Errorf("unexpected botA fields: agent=%s token=%s", b.DefaultAgent, b.Token)
+	}
+
+	b2, ok := state.GetBot("botB")
+	if !ok {
+		t.Fatal("expected botB to be found")
+	}
+	if b2.Enabled {
+		t.Error("expected botB to be disabled")
+	}
+
+	// Still not found after adding
+	_, ok = state.GetBot("botC")
+	if ok {
+		t.Error("expected not found for botC")
+	}
+}
+
+// TestGetBotByToken tests Token-based lookup.
+func TestGetBotByToken(t *testing.T) {
+	tmpFile := "/tmp/test_state_getbot_token.json"
+	defer os.Remove(tmpFile)
+
+	state := NewState(tmpFile)
+
+	// Not found
+	_, ok := state.GetBotByToken("unknown_tok")
+	if ok {
+		t.Error("expected not found for unknown token")
+	}
+
+	bot := Bot{BotID: "botX", Token: "secret_tok", DefaultAgent: "openclaw", Enabled: true}
+	if err := state.AddBot(bot); err != nil {
+		t.Fatalf("AddBot: %v", err)
+	}
+
+	b, ok := state.GetBotByToken("secret_tok")
+	if !ok {
+		t.Fatal("expected token lookup to succeed")
+	}
+	if b.BotID != "botX" {
+		t.Errorf("expected BotID=botX, got %s", b.BotID)
+	}
+
+	// Wrong token still not found
+	_, ok = state.GetBotByToken("wrong_tok")
+	if ok {
+		t.Error("expected not found for wrong token")
+	}
+}
+
+// TestGetEnabledBots tests filtering by Enabled flag.
+func TestGetEnabledBots(t *testing.T) {
+	tmpFile := "/tmp/test_state_enabled.json"
+	defer os.Remove(tmpFile)
+
+	state := NewState(tmpFile)
+
+	bots := state.GetEnabledBots()
+	if len(bots) != 0 {
+		t.Errorf("expected 0 enabled bots initially, got %d", len(bots))
+	}
+
+	// Default agents have no bots, ensure no false positives
+	if err := state.AddBot(Bot{BotID: "disabled_bot", Token: "t1", Enabled: false}); err != nil {
+		t.Fatalf("AddBot disabled: %v", err)
+	}
+	if err := state.AddBot(Bot{BotID: "enabled_bot", Token: "t2", Enabled: true}); err != nil {
+		t.Fatalf("AddBot enabled: %v", err)
+	}
+	if err := state.AddBot(Bot{BotID: "another_disabled", Token: "t3", Enabled: false}); err != nil {
+		t.Fatalf("AddBot another_disabled: %v", err)
+	}
+
+	enabled := state.GetEnabledBots()
+	if len(enabled) != 1 {
+		t.Errorf("expected 1 enabled bot, got %d", len(enabled))
+	}
+	if enabled[0].BotID != "enabled_bot" {
+		t.Errorf("expected enabled_bot, got %s", enabled[0].BotID)
+	}
+}
+
+// TestRemoveBot tests bot removal and persistence.
+func TestRemoveBot(t *testing.T) {
+	tmpFile := "/tmp/test_state_remove_bot.json"
+	defer os.Remove(tmpFile)
+
+	state := NewState(tmpFile)
+
+	// Remove non-existent
+	err := state.RemoveBot("ghost")
+	if err == nil {
+		t.Error("expected error removing nonexistent bot")
+	}
+
+	bot := Bot{BotID: "removeme", Token: "tok_rem", DefaultAgent: "hermes", Enabled: true}
+	if err := state.AddBot(bot); err != nil {
+		t.Fatalf("AddBot: %v", err)
+	}
+
+	// Verify it exists
+	if _, ok := state.GetBot("removeme"); !ok {
+		t.Fatal("bot should exist before removal")
+	}
+
+	// Remove
+	if err := state.RemoveBot("removeme"); err != nil {
+		t.Fatalf("RemoveBot: %v", err)
+	}
+
+	// Verify gone
+	if _, ok := state.GetBot("removeme"); ok {
+		t.Error("bot should be gone after removal")
+	}
+
+	// Simulate reload from disk
+	state2 := NewState(tmpFile)
+	if _, ok := state2.GetBot("removeme"); ok {
+		t.Error("bot should not persist after removal")
+	}
+}
+
+// TestSetBotEnabled tests enable/disable and persistence across reload.
+func TestSetBotEnabled(t *testing.T) {
+	tmpFile := "/tmp/test_state_bot_enabled.json"
+	defer os.Remove(tmpFile)
+
+	state := NewState(tmpFile)
+
+	bot := Bot{BotID: "toggle_me", Token: "tok_toggle", Enabled: false}
+	if err := state.AddBot(bot); err != nil {
+		t.Fatalf("AddBot: %v", err)
+	}
+
+	// Reload and verify disabled
+	state2 := NewState(tmpFile)
+	if b, ok := state2.GetBot("toggle_me"); !ok {
+		t.Fatal("bot should exist after reload")
+	} else if b.Enabled {
+		t.Error("expected bot to be disabled after reload")
+	}
+
+	// Enable
+	if err := state.SetBotEnabled("toggle_me", true); err != nil {
+		t.Fatalf("SetBotEnabled true: %v", err)
+	}
+	if b, ok := state.GetBot("toggle_me"); !ok || !b.Enabled {
+		t.Error("expected bot enabled after SetBotEnabled(true)")
+	}
+
+	// Persisted?
+	state3 := NewState(tmpFile)
+	if b, ok := state3.GetBot("toggle_me"); !ok {
+		t.Fatal("bot should persist")
+	} else if !b.Enabled {
+		t.Error("expected enabled after reload")
+	}
+
+	// Disable again
+	if err := state.SetBotEnabled("toggle_me", false); err != nil {
+		t.Fatalf("SetBotEnabled false: %v", err)
+	}
+
+	// Non-existent bot
+	err := state.SetBotEnabled("ghost_bot", true)
+	if err == nil {
+		t.Error("expected error for nonexistent bot")
+	}
+
+	// Persisted disabled state
+	state4 := NewState(tmpFile)
+	if b, ok := state4.GetBot("toggle_me"); !ok {
+		t.Fatal("bot should persist")
+	} else if b.Enabled {
+		t.Error("expected disabled after reload")
+	}
+}
+
+// TestBotPersistence_BotLookup tests that GetBot and GetBotByToken survive persist/reload.
+func TestBotPersistence_BotLookup(t *testing.T) {
+	tmpFile := "/tmp/test_state_persist_lookup.json"
+	defer os.Remove(tmpFile)
+
+	state := NewState(tmpFile)
+	if err := state.AddBot(Bot{BotID: "persist_bot", Token: "persist_tok", DefaultAgent: "openclaw", Enabled: true}); err != nil {
+		t.Fatalf("AddBot: %v", err)
+	}
+
+	// Reload
+	state2 := NewState(tmpFile)
+
+	b, ok := state2.GetBot("persist_bot")
+	if !ok {
+		t.Fatal("GetBot failed after reload")
+	}
+	if b.Token != "persist_tok" || b.DefaultAgent != "openclaw" {
+		t.Errorf("unexpected fields after reload: token=%s agent=%s", b.Token, b.DefaultAgent)
+	}
+
+	b2, ok := state2.GetBotByToken("persist_tok")
+	if !ok {
+		t.Fatal("GetBotByToken failed after reload")
+	}
+	if b2.BotID != "persist_bot" {
+		t.Errorf("expected BotID=persist_bot, got %s", b2.BotID)
+	}
+}
+
+// TestSaveLocked_Errors tests that save errors are handled gracefully.
+func TestSaveLocked_Errors(t *testing.T) {
+	// Save to a directory (not a file) should fail
+	state := NewState("/tmp/cant_write_this")
+	defer os.Remove("/tmp/cant_write_this")
+
+	// Silently returns; just verify no panic occurs
+	b := Bot{BotID: "test", Token: "t", Enabled: true}
+	state.AddBot(b)
+
+	// Adding another bot triggers another save
+	b2 := Bot{BotID: "test2", Token: "t2", Enabled: false}
+	state.AddBot(b2)
+}
+
+// TestMaskToken tests that token masking is not empty and shorter than original.
+func TestMaskToken(t *testing.T) {
+	masked := maskToken("verylongtokenstring12345")
+	if masked == "" {
+		t.Error("masked token should not be empty")
+	}
+	if len(masked) >= len("verylongtokenstring12345") {
+		t.Error("masked token should be shorter than original")
+	}
+	// Short token should still produce some output
+	maskedShort := maskToken("a")
+	if maskedShort == "" {
+		t.Error("masked short token should not be empty")
+	}
+}
