@@ -96,7 +96,4 @@ Types: `fix:`, `feat:`, `chore:`, `docs:`. Keep the first line under 72 chars.
 
 ## Known Quirks
 
-- `config.Config.config` field is initialized but never read — historical, do not rely on it
-- `TypingManager` and `MediaProcessor` exist but are not wired in — future media support
-- `formatWhoami` in `router/message.go` is dead code (unused)
-- Welcome message author name differs between `procMsg` (`@ian4hu`) and `formatWhoami` (`@AaronYonW`) — clarify if editing
+- Welcome message author name uses `@ian4hu` in `procMsg` but `@AaronYonW` was used in the deleted `formatWhoami` — clarify if editing

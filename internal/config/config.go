@@ -15,8 +15,6 @@ type Config struct {
 	StateFile    string // Path to persistent state file
 	LogFile      string // Path to log file
 	PollTimeout  int    // Long-poll timeout in seconds
-
-	config map[string]string // Raw config map (unused, kept for future)
 }
 
 var (
@@ -28,9 +26,7 @@ var (
 // Environment variables are loaded on first call.
 func Load() *Config {
 	once.Do(func() {
-		cfg = &Config{
-			config: make(map[string]string),
-		}
+		cfg = &Config{}
 		cfg.loadFromEnv()
 	})
 	return cfg

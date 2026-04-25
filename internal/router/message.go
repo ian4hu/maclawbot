@@ -267,25 +267,6 @@ func formatAgentInfo(state *State, agentName string) string {
 		agent.Name, agent.Port, agent.Tag, agent.DefaultAgent)
 }
 
-// formatWhoami returns the current status and available commands.
-func formatWhoami(state *State) string {
-	currentAgent := state.GetDefaultAgent()
-	agent, _ := state.GetAgent(currentAgent)
-
-	lines := []string{
-		"**MAClawBot** by X @AaronYonW",
-		fmt.Sprintf("**Current agent**: **%s** (port %d)", currentAgent, agent.Port),
-		"",
-		"**Commands:**",
-		"- `/clawbot` - Show clawbot help",
-		"- `/clawbot list` - List all agents",
-		"- `/clawbot new <name>` - Create new agent",
-		"- `/clawbot set <name>` - Switch to agent",
-	}
-
-	return strings.Join(lines, "\n")
-}
-
 // formatClawbotHelp returns the help text for /clawbot commands.
 func formatClawbotHelp() string {
 	lines := []string{
