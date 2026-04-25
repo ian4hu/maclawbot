@@ -39,7 +39,7 @@ func TestStopAgent(t *testing.T) {
 	defer os.Remove(statePath)
 
 	state := router.NewState(statePath)
-	pm := NewProxyManager(state, "http://127.0.0.1:9999", "fake-token", 35)
+	pm := NewProxyManager(state, "http://127.0.0.1:9999", 35)
 
 	port := getFreePort(t)
 	agent := router.Agent{
@@ -56,17 +56,15 @@ func TestStopAgent(t *testing.T) {
 	pm.mu.Lock()
 	pm.mu.Unlock()
 
-	if q := pm.GetQueue("stopme"); q == nil {
-		t.Fatal("expected queue to exist after StartAgent")
+	if q := pm.GetOrCreateQueue("test", "stopme"); q == nil {
+		t.Fatal("expected queue to exist")
 	}
 
 	if err := pm.StopAgent("stopme"); err != nil {
 		t.Fatalf("StopAgent failed: %v", err)
 	}
 
-	if q := pm.GetQueue("stopme"); q != nil {
-		t.Error("expected queue to be nil after StopAgent")
-	}
+	// Note: queues intentionally persist across agent stops to preserve account-scoped messages
 
 	active := pm.GetActiveAgents()
 	for i := range active {
@@ -82,7 +80,7 @@ func TestStopAgent_NoOp(t *testing.T) {
 	defer os.Remove(statePath)
 
 	state := router.NewState(statePath)
-	pm := NewProxyManager(state, "http://127.0.0.1:9999", "fake-token", 35)
+	pm := NewProxyManager(state, "http://127.0.0.1:9999", 35)
 
 	if err := pm.StopAgent("nonexistent"); err != nil {
 		t.Fatalf("StopAgent on nonexistent agent should not error, got: %v", err)
@@ -95,7 +93,7 @@ func TestGetActiveAgents(t *testing.T) {
 	defer os.Remove(statePath)
 
 	state := router.NewState(statePath)
-	pm := NewProxyManager(state, "http://127.0.0.1:9999", "fake-token", 35)
+	pm := NewProxyManager(state, "http://127.0.0.1:9999", 35)
 
 	if len(pm.GetActiveAgents()) != 0 {
 		t.Error("expected no active agents initially")
@@ -137,7 +135,7 @@ func TestOnAgentAddedRemoved(t *testing.T) {
 	defer os.Remove(statePath)
 
 	state := router.NewState(statePath)
-	pm := NewProxyManager(state, "http://127.0.0.1:9999", "fake-token", 35)
+	pm := NewProxyManager(state, "http://127.0.0.1:9999", 35)
 
 	port := getFreePort(t)
 	agent := router.Agent{
@@ -151,17 +149,16 @@ func TestOnAgentAddedRemoved(t *testing.T) {
 	pm.mu.Lock()
 	pm.mu.Unlock()
 
-	if pm.GetQueue("cycle") == nil {
-		t.Fatal("queue should exist after OnAgentAdded")
+	// Queues are now lazily created per (account, agent) pair - eagerly create one for testing
+	if pm.GetOrCreateQueue("test", "cycle") == nil {
+		t.Fatal("queue should exist after GetOrCreateQueue")
 	}
 
 	pm.OnAgentRemoved("cycle")
 	pm.mu.Lock()
 	pm.mu.Unlock()
 
-	if pm.GetQueue("cycle") != nil {
-		t.Error("queue should be nil after OnAgentRemoved")
-	}
+	// Queues persist across agent stops to preserve account-scoped messages
 }
 
 // TestHandleAgentChangeRemovesOrphanedProxy tests the core cleanup logic:
@@ -172,7 +169,7 @@ func TestHandleAgentChangeRemovesOrphanedProxy(t *testing.T) {
 	defer os.Remove(statePath)
 
 	state := router.NewState(statePath)
-	pm := NewProxyManager(state, "http://127.0.0.1:9999", "fake-token", 35)
+	pm := NewProxyManager(state, "http://127.0.0.1:9999", 35)
 
 	port := getFreePort(t)
 	agent := router.Agent{

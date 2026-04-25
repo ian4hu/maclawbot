@@ -44,16 +44,16 @@ func main() {
 	cfg := config.Load()
 	setupLogging(cfg.LogFile)
 
-	// Validate required configuration
-	if cfg.ILinkToken == "" {
-		log.Fatal("No ILINK_TOKEN set!")
-	}
-
-	// Initialize state management (loads persisted agents)
+	// Initialize state management (loads persisted agents and accounts)
 	state := router.NewState(cfg.StateFile)
 
+	accounts := state.GetEnabledAccounts()
+	if len(accounts) == 0 && cfg.ILinkToken == "" {
+		log.Fatal("No ILINK_TOKEN set and no accounts configured!")
+	}
+
 	// Initialize proxy manager and start all agent servers
-	pm := proxy.NewProxyManager(state, cfg.ILinkBaseURL, cfg.ILinkToken, cfg.PollTimeout)
+	pm := proxy.NewProxyManager(state, cfg.ILinkBaseURL, cfg.PollTimeout)
 	pm.StartAll()
 
 	// Log startup information
@@ -62,20 +62,19 @@ func main() {
 	log.Printf("iLink: %s", cfg.ILinkBaseURL)
 	log.Printf("Agents:")
 	for name, agent := range state.GetAgents() {
-		defaultMark := ""
-		if agent.DefaultAgent {
-			defaultMark = " (default)"
-		}
-		log.Printf("  - %s: 127.0.0.1:%d%s", name, agent.Port, defaultMark)
+		log.Printf("  - %s: 127.0.0.1:%d", name, agent.Port)
 	}
 	log.Println("================================================================================")
 
-	// Create iLink client for polling and sending messages
-	client := ilink.NewClient(cfg.ILinkBaseURL, cfg.ILinkToken)
-
-	// Start the poll loop in background
+	// Start the poll loop(s) in background
 	ctx, cancel := context.WithCancel(context.Background())
-	go pollLoop(ctx, client, state, pm, time.Duration(cfg.PollTimeout)*time.Second)
+	if len(accounts) > 0 {
+		for _, acc := range accounts {
+			go pollLoop(ctx, acc.Token, cfg.ILinkBaseURL, state, pm, time.Duration(cfg.PollTimeout)*time.Second)
+		}
+	} else if cfg.ILinkToken != "" {
+		go pollLoop(ctx, cfg.ILinkToken, cfg.ILinkBaseURL, state, pm, time.Duration(cfg.PollTimeout)*time.Second)
+	}
 
 	// Wait for shutdown signal
 	quit := make(chan os.Signal, 1)
@@ -90,11 +89,14 @@ func main() {
 
 // pollLoop continuously polls iLink for new messages and routes them to agents.
 // Implements exponential backoff on errors to prevent hammering the API.
-func pollLoop(ctx context.Context, client *ilink.Client, state *router.State, pm *proxy.ProxyManager, pollTimeout time.Duration) {
+// One pollLoop is started per enabled account.
+func pollLoop(ctx context.Context, token string, baseURL string, state *router.State, pm *proxy.ProxyManager, pollTimeout time.Duration) {
 	const (
-		maxFails     = 3                  // Max consecutive failures before backoff
-		backoff      = 30 * time.Second   // Backoff duration after max failures
+		maxFails = 3                // Max consecutive failures before backoff
+		backoff  = 30 * time.Second // Backoff duration after max failures
 	)
+
+	client := ilink.NewClient(baseURL, token)
 
 	buf := ""
 	fails := 0
@@ -151,6 +153,7 @@ func handleFailure(fails, maxFails int, backoff time.Duration) int {
 // procMsg processes a single incoming message from iLink.
 // Handles commands, shows welcome message to new users, and routes to agents.
 func procMsg(msg router.Message, client *ilink.Client, state *router.State, pm *proxy.ProxyManager) {
+	accountID := msg.ToUserID
 	uid := msg.FromUserID
 	ctx := msg.ContextToken
 
@@ -170,13 +173,13 @@ func procMsg(msg router.Message, client *ilink.Client, state *router.State, pm *
 	}
 
 	// Show welcome message to new users (non-command messages)
-	if state.ShouldShowStatus(uid) && !hasPrefix(txt, "/") {
+	if state.ShouldShowStatus(accountID, uid) && !hasPrefix(txt, "/") {
 		// Build welcome message directly instead of using /whoami command
-		currentAgent := state.GetDefaultAgent()
-		agent, _ := state.GetAgent(currentAgent)
-		welcomeMsg := fmt.Sprintf("**MAClawBot** by Github @ian4hu\n**Current agent**: **%s** (port %d)\n\n**Commands:**\n- `/clawbot` - Show clawbot help\n- `/clawbot list` - List all agents\n- `/clawbot new <name>` - Create new agent\n- `/clawbot set <name>` - Switch to agent", currentAgent, agent.Port)
+		defaultAgent := state.GetDefaultAgentForAccount(accountID)
+		agent, _ := state.GetAgent(defaultAgent)
+		welcomeMsg := fmt.Sprintf("**MAClawBot** by Github @ian4hu\n**Current agent**: **%s** (port %d)\n\n**Commands:**\n- `/clawbot` - Show clawbot help\n- `/clawbot list` - List all agents\n- `/clawbot new <name>` - Create new agent\n- `/clawbot set <name>` - Switch to agent", defaultAgent, agent.Port)
 		client.SendText(uid, welcomeMsg, ctx)
-		state.MarkStatusShown(uid)
+		state.MarkStatusShown(accountID, uid)
 	}
 
 	// Handle slash commands
@@ -193,14 +196,9 @@ func procMsg(msg router.Message, client *ilink.Client, state *router.State, pm *
 		}
 	}
 
-	// Route message to the default agent
-	agentName := state.GetDefaultAgent()
-	queue := pm.GetQueue(agentName)
-	if queue != nil {
-		queue.Enqueue(msg)
-	} else {
-		log.Printf("Queue for agent %s not available", agentName)
-	}
+	// Route message to the account's default agent
+	defaultAgent := state.GetDefaultAgentForAccount(accountID)
+	pm.Enqueue(accountID, defaultAgent, msg)
 }
 
 // handleAgentChange ensures proxy servers match the configured agents.

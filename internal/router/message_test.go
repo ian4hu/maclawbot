@@ -44,6 +44,9 @@ func TestProcessCommand_ClawbotSet(t *testing.T) {
 	defer os.Remove(tmpFile)
 
 	state := NewState(tmpFile)
+	if err := state.AddAccount(Account{AccountID: "test_account"}); err != nil {
+		t.Fatalf("Failed to add account: %v", err)
+	}
 
 	// Switch to openclaw
 	result := ProcessCommand(state, "/clawbot set openclaw")
@@ -52,7 +55,7 @@ func TestProcessCommand_ClawbotSet(t *testing.T) {
 	}
 
 	// Verify default agent changed
-	defaultAgent := state.GetDefaultAgent()
+	defaultAgent := state.GetDefaultAgentForAccount("test_account")
 	if defaultAgent != "openclaw" {
 		t.Errorf("Expected default agent to be openclaw, got %s", defaultAgent)
 	}
@@ -164,6 +167,9 @@ func TestProcessCommand_CaseInsensitive(t *testing.T) {
 	defer os.Remove(tmpFile)
 
 	state := NewState(tmpFile)
+	if err := state.AddAccount(Account{AccountID: "test_account"}); err != nil {
+		t.Fatalf("Failed to add account: %v", err)
+	}
 
 	// Test uppercase command
 	result := ProcessCommand(state, "/CLAWBOT SET openclaw")
@@ -171,7 +177,7 @@ func TestProcessCommand_CaseInsensitive(t *testing.T) {
 		t.Error("Expected uppercase command to be handled")
 	}
 
-	defaultAgent := state.GetDefaultAgent()
+	defaultAgent := state.GetDefaultAgentForAccount("test_account")
 	if defaultAgent != "openclaw" {
 		t.Errorf("Expected default agent to be openclaw, got %s", defaultAgent)
 	}

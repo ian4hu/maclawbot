@@ -29,9 +29,6 @@ func TestNewState_CreatesDefaultAgents(t *testing.T) {
 	if hermes.Port != 19998 {
 		t.Errorf("Expected hermes port 19998, got %d", hermes.Port)
 	}
-	if !hermes.DefaultAgent {
-		t.Error("Expected hermes to be default agent")
-	}
 
 	// Check openclaw agent
 	openclaw, ok := state.GetAgent("openclaw")
@@ -40,9 +37,6 @@ func TestNewState_CreatesDefaultAgents(t *testing.T) {
 	}
 	if openclaw.Port != 19999 {
 		t.Errorf("Expected openclaw port 19999, got %d", openclaw.Port)
-	}
-	if openclaw.DefaultAgent {
-		t.Error("Expected openclaw not to be default agent")
 	}
 }
 
@@ -165,37 +159,28 @@ func TestSetDefaultAgent(t *testing.T) {
 	defer os.Remove(tmpFile)
 
 	state := NewState(tmpFile)
+	if err := state.AddAccount(Account{AccountID: "test_account"}); err != nil {
+		t.Fatalf("Failed to add account: %v", err)
+	}
 
-	// Initially hermes should be default
-	defaultAgent := state.GetDefaultAgent()
+	// Initially hermes should be default (fallback)
+	defaultAgent := state.GetDefaultAgentForAccount("test_account")
 	if defaultAgent != "hermes" {
 		t.Errorf("Expected default agent to be hermes, got %s", defaultAgent)
 	}
 
 	// Switch to openclaw
-	if err := state.SetDefaultAgent("openclaw"); err != nil {
+	if err := state.SetAccountDefaultAgent("test_account", "openclaw"); err != nil {
 		t.Fatalf("Failed to set default agent: %v", err)
 	}
 
-	defaultAgent = state.GetDefaultAgent()
+	defaultAgent = state.GetDefaultAgentForAccount("test_account")
 	if defaultAgent != "openclaw" {
 		t.Errorf("Expected default agent to be openclaw, got %s", defaultAgent)
 	}
 
-	// Verify hermes is no longer default
-	hermes, _ := state.GetAgent("hermes")
-	if hermes.DefaultAgent {
-		t.Error("Expected hermes to not be default after switch")
-	}
-
-	// Verify openclaw is now default
-	openclaw, _ := state.GetAgent("openclaw")
-	if !openclaw.DefaultAgent {
-		t.Error("Expected openclaw to be default")
-	}
-
 	// Try to set non-existent agent as default
-	err := state.SetDefaultAgent("nonexistent")
+	err := state.SetAccountDefaultAgent("test_account", "nonexistent")
 	if err == nil {
 		t.Error("Expected error when setting non-existent agent as default")
 	}
@@ -236,18 +221,21 @@ func TestShouldShowStatus(t *testing.T) {
 	defer os.Remove(tmpFile)
 
 	state := NewState(tmpFile)
+	if err := state.AddAccount(Account{AccountID: "test_account"}); err != nil {
+		t.Fatalf("Failed to add account: %v", err)
+	}
 
 	// New user should see status
 	uid := "user123"
-	if !state.ShouldShowStatus(uid) {
+	if !state.ShouldShowStatus("test_account", uid) {
 		t.Error("Expected new user to see status")
 	}
 
 	// Mark status as shown
-	state.MarkStatusShown(uid)
+	state.MarkStatusShown("test_account", uid)
 
 	// User should not see status again
-	if state.ShouldShowStatus(uid) {
+	if state.ShouldShowStatus("test_account", uid) {
 		t.Error("Expected user to not see status after marked as shown")
 	}
 }
@@ -258,6 +246,9 @@ func TestConcurrentStateAccess(t *testing.T) {
 	defer os.Remove(tmpFile)
 
 	state := NewState(tmpFile)
+	if err := state.AddAccount(Account{AccountID: "test_account"}); err != nil {
+		t.Fatalf("Failed to add account: %v", err)
+	}
 
 	done := make(chan bool)
 
@@ -265,8 +256,8 @@ func TestConcurrentStateAccess(t *testing.T) {
 	go func() {
 		for i := 0; i < 100; i++ {
 			state.GetAgents()
-			state.GetDefaultAgent()
-			state.ShouldShowStatus("user")
+			state.GetDefaultAgentForAccount("test_account")
+			state.ShouldShowStatus("test_account", "user")
 		}
 		done <- true
 	}()
@@ -281,8 +272,8 @@ func TestConcurrentStateAccess(t *testing.T) {
 				Enabled: true,
 			}
 			state.AddAgent(agent)
-			state.SetDefaultAgent("hermes")
-			state.MarkStatusShown("user")
+			state.SetAccountDefaultAgent("test_account", "hermes")
+			state.MarkStatusShown("test_account", "user")
 		}
 		done <- true
 	}()
