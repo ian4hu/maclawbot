@@ -19,11 +19,13 @@ import (
 // allowedEndpoints defines which iLink API endpoints the proxy will forward.
 // This is a security measure to prevent gateway from accessing other iLink APIs.
 var allowedEndpoints = map[string]bool{
-	"ilink/bot/getupdates":         true,  // Long-polling for new messages
-	"ilink/bot/sendmessage":       true,  // Sending replies
-	"ilink/bot/getuploadurl":       true,  // Media upload
-	"ilink/bot/get_bot_qrcode":    true,  // QR code for login
-	"ilink/bot/get_qrcode_status": true,  // QR code scan status
+	"ilink/bot/getupdates":        true, // Long-polling for new messages
+	"ilink/bot/sendmessage":       true, // Sending replies
+	"ilink/bot/getuploadurl":      true, // Media upload
+	"ilink/bot/get_bot_qrcode":    true, // QR code for login
+	"ilink/bot/get_qrcode_status": true, // QR code scan status
+	"ilink/bot/getconfig":         true,
+	"ilink/bot/sendtyping":        true,
 }
 
 // ProxyHandler handles HTTP requests from an AI gateway.
@@ -31,21 +33,23 @@ var allowedEndpoints = map[string]bool{
 // One ProxyHandler instance is shared across all accounts that use the same agent.
 // Account context is determined by X-Queue-Name header or to_user_id in request body.
 type ProxyHandler struct {
-	pm           *ProxyManager   // Reference to proxy manager for queue lookup
-	State        *router.State   // Shared state for access control
-	ILinkBaseURL string          // iLink API base URL
-	PollTimeout  time.Duration   // Max time to wait for messages in queue
+	pm           *ProxyManager // Reference to proxy manager for queue lookup
+	State        *router.State // Shared state for access control
+	ILinkBaseURL string        // iLink API base URL
+	PollTimeout  time.Duration // Max time to wait for messages in queue
+	agent        *router.Agent
 }
 
 // NewProxyHandler creates a new proxy handler for an agent.
 // One handler instance is shared across all accounts using this agent.
 // The pm reference allows queue lookup by accountID_agentName.
-func NewProxyHandler(pm *ProxyManager, state *router.State, ilinkBaseURL string, pollTimeout time.Duration) *ProxyHandler {
+func NewProxyHandler(pm *ProxyManager, state *router.State, ilinkBaseURL string, pollTimeout time.Duration, agent *router.Agent) *ProxyHandler {
 	return &ProxyHandler{
 		pm:           pm,
 		State:        state,
 		ILinkBaseURL: ilinkBaseURL,
 		PollTimeout:  pollTimeout,
+		agent:        agent,
 	}
 }
 
@@ -95,12 +99,40 @@ func (h *ProxyHandler) handleGetUpdates(w http.ResponseWriter, r *http.Request, 
 		json.Unmarshal(body, &req)
 	}
 
-	// Get queue name from X-Queue-Name header (format: accountID_agentName)
-	queueName := r.Header.Get("X-Queue-Name")
-	if queueName == "" {
-		http.Error(w, `{"ret":-1,"errmsg":"missing X-Queue-Name header"}`, http.StatusBadRequest)
+	// Try to get account by Authorization header, and parse the token.
+	authentication := r.Header.Get("Authorization")
+	if authentication == "" {
+		http.Error(w, `{"ret":-1,"errmsg":"missing Authorization header"}`, http.StatusBadRequest)
+		log.Printf("Proxy getupdates (%s) -> missing Authorization header", r.URL)
 		return
 	}
+
+	// Get token from Authorization header
+	token := strings.TrimPrefix(authentication, "Bearer ")
+	if token == "" {
+		http.Error(w, `{"ret":-1,"errmsg":"missing token"}`, http.StatusBadRequest)
+		log.Printf("Proxy getupdates (%s) -> missing token", r.URL)
+		return
+	}
+
+	// By default, the token should be the bot name.
+	bot, ok := h.State.GetBot(token)
+	if !ok {
+		// Try get bot by token
+		bot, ok = h.State.GetBotByToken(token)
+	}
+	if !ok {
+		// Try get the defualt bot
+		bot, ok = h.State.GetBot("default")
+	}
+
+	if !ok {
+		http.Error(w, `{"ret":-1,"errmsg":"bot not found"}`, http.StatusBadRequest)
+		log.Printf("Proxy getupdates (%s) -> bot not found", token)
+		return
+	}
+
+	queueName := bot.AccountID + "_" + h.agent.Name
 
 	// Get the queue for this account+agent
 	queue := h.pm.GetQueue(queueName)
@@ -120,6 +152,8 @@ func (h *ProxyHandler) handleGetUpdates(w http.ResponseWriter, r *http.Request, 
 
 	if len(msgs) > 0 {
 		log.Printf("Proxy getupdates (%s) -> %d msgs", queueName, len(msgs))
+	} else {
+		log.Printf("Proxy getupdates (%s) -> no msgs", queueName)
 	}
 
 	h.writeJSON(w, http.StatusOK, resp)
@@ -135,20 +169,6 @@ func (h *ProxyHandler) handleSendMessage(w http.ResponseWriter, r *http.Request,
 	}
 
 	h.forwardToILink(w, r, "ilink/bot/sendmessage", req)
-}
-
-// tokenForBot looks up the iLink token for a given accountID.
-// Returns empty string if account not found.
-func (h *ProxyHandler) tokenForBot(accountID string) string {
-	if accountID == "" {
-		return ""
-	}
-	account, ok := h.State.GetBot(accountID)
-	if !ok {
-		log.Printf("Account not found: %s", accountID)
-		return ""
-	}
-	return account.Token
 }
 
 // proxyPassthrough forwards other endpoints directly to iLink without modification.
@@ -178,24 +198,14 @@ func (h *ProxyHandler) forwardToILink(w http.ResponseWriter, r *http.Request, ep
 		return
 	}
 
-	// Determine token: try X-Queue-Name header first, then fall back to to_user_id in body
-	token := ""
-	if queueName := r.Header.Get("X-Queue-Name"); queueName != "" {
-		// Extract accountID from queueName (format: accountID_agentName)
-		parts := strings.SplitN(queueName, "_", 2)
-		if len(parts) >= 1 {
-			token = h.tokenForBot(parts[0])
-		}
+	// Determine token, get bot from request
+	bot, err := h.getBot(r)
+	if err != nil {
+		http.Error(w, `{"ret":-1,"errmsg":"bot not found"}`, http.StatusBadRequest)
+		return
 	}
 
-	// Fall back to to_user_id if no token found from header
-	if token == "" {
-		if reqMap, ok := reqBody.(map[string]interface{}); ok {
-			if toUserID, ok := reqMap["to_user_id"].(string); ok {
-				token = h.tokenForBot(toUserID)
-			}
-		}
-	}
+	token := bot.Token
 
 	if token == "" {
 		log.Printf("Could not determine token for request to %s", ep)
@@ -248,15 +258,56 @@ func (h *ProxyHandler) writeJSON(w http.ResponseWriter, code int, obj interface{
 	w.Write(data)
 }
 
+// getBot extracts the bot information from the request headers or returns an error.
+func (h *ProxyHandler) getBot(r *http.Request) (router.Bot, error) {
+	// Try to get account by Authorization header, and parse the token.
+	authentication := r.Header.Get("Authorization")
+	if authentication == "" {
+		return router.Bot{}, fmt.Errorf("missing Authorization header")
+	}
+
+	// Get token from Authorization header
+	token := strings.TrimPrefix(authentication, "Bearer ")
+	if token == "" {
+		return router.Bot{}, fmt.Errorf("missing token")
+	}
+
+	// By default, the token should be the bot name.
+	bot, ok := h.State.GetBot(token)
+	if !ok {
+		// Try get bot by token
+		bot, ok = h.State.GetBotByToken(token)
+	}
+	if !ok {
+		// Try get the defualt bot
+		bot, ok = h.State.GetBot("default")
+	}
+
+	if !ok {
+		return bot, fmt.Errorf("bot not found")
+	}
+	return bot, nil
+}
+
+// getQueueName
+func (h *ProxyHandler) getQueueName(r *http.Request) (string, error) {
+	bot, err := h.getBot(r)
+	if err != nil {
+		return "", err
+	}
+	queueName := bot.AccountID + "_" + h.agent.Name
+	return queueName, nil
+}
+
 // ProxyManager manages multiple agent proxy servers dynamically.
 // It creates, starts, stops, and tracks all agent HTTP servers.
 type ProxyManager struct {
-	mu           sync.RWMutex          // Protects servers and queues maps
-	servers      map[string]*http.Server // Active HTTP servers, keyed by agent name
+	mu           sync.RWMutex             // Protects servers and queues maps
+	servers      map[string]*http.Server  // Active HTTP servers, keyed by agent name
 	queues       map[string]*MessageQueue // Message queues, keyed by queueName (accountID_agentName)
-	state        *router.State          // Shared state for agent config
-	ilinkBaseURL string                 // iLink API base URL
-	pollTimeout  time.Duration          // Long-poll timeout
+	state        *router.State            // Shared state for agent config
+	ilinkBaseURL string                   // iLink API base URL
+	pollTimeout  time.Duration            // Long-poll timeout
 }
 
 // NewProxyManager creates a new proxy manager.
@@ -301,6 +352,7 @@ func (pm *ProxyManager) GetOrCreateQueue(accountID, agentName string) *MessageQu
 // Enqueue adds a message to the queue for the given accountID and agentName.
 // This is called when routing incoming messages to an agent.
 func (pm *ProxyManager) Enqueue(accountID, agentName string, msg interface{}) {
+	log.Printf("Enqueuing message for %s_%s", accountID, agentName)
 	queue := pm.GetOrCreateQueue(accountID, agentName)
 	queue.Enqueue(msg)
 }
@@ -328,7 +380,7 @@ func (pm *ProxyManager) StartAgent(agent router.Agent) error {
 		return nil
 	}
 
-	handler := NewProxyHandler(pm, pm.state, pm.ilinkBaseURL, pm.pollTimeout)
+	handler := NewProxyHandler(pm, pm.state, pm.ilinkBaseURL, pm.pollTimeout, agent)
 
 	addr := fmt.Sprintf("127.0.0.1:%d", agent.Port)
 	srv := &http.Server{

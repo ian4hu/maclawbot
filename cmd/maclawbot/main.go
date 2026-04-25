@@ -189,7 +189,7 @@ func procMsg(msg router.Message, client *ilink.Client, state *router.State, pm *
 			client.SendText(uid, result.Text, ctx)
 
 			// If agent was added or removed, update running servers
-			if (hasPrefix(txt, "/clawbot new") || hasPrefix(txt, "/clawbot del")) {
+			if hasPrefix(txt, "/clawbot new") || hasPrefix(txt, "/clawbot del") {
 				handleAgentChange(state, pm)
 			}
 			return
@@ -197,8 +197,15 @@ func procMsg(msg router.Message, client *ilink.Client, state *router.State, pm *
 	}
 
 	// Route message to the account's default agent
-	defaultAgent := state.GetDefaultAgentForBot(accountID)
-	pm.Enqueue(accountID, defaultAgent, msg)
+	bot, ok := state.GetBot(accountID)
+	if !ok {
+		bot, ok = state.GetBot("default")
+	}
+	if !ok {
+		log.Printf("Bot not found: %s", accountID)
+		return
+	}
+	pm.Enqueue(bot.AccountID, bot.DefaultAgent, msg)
 }
 
 // handleAgentChange ensures proxy servers match the configured agents.
