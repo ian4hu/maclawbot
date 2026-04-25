@@ -47,7 +47,7 @@ func main() {
 	// Initialize state management (loads persisted agents and accounts)
 	state := router.NewState(cfg.StateFile)
 
-	accounts := state.GetEnabledAccounts()
+	accounts := state.GetEnabledBots()
 	if len(accounts) == 0 && cfg.ILinkToken == "" {
 		log.Fatal("No ILINK_TOKEN set and no accounts configured!")
 	}
@@ -69,8 +69,8 @@ func main() {
 	// Start the poll loop(s) in background
 	ctx, cancel := context.WithCancel(context.Background())
 	if len(accounts) > 0 {
-		for _, acc := range accounts {
-			go pollLoop(ctx, acc.Token, cfg.ILinkBaseURL, state, pm, time.Duration(cfg.PollTimeout)*time.Second)
+		for _, bot := range accounts {
+			go pollLoop(ctx, bot.Token, cfg.ILinkBaseURL, state, pm, time.Duration(cfg.PollTimeout)*time.Second)
 		}
 	} else if cfg.ILinkToken != "" {
 		go pollLoop(ctx, cfg.ILinkToken, cfg.ILinkBaseURL, state, pm, time.Duration(cfg.PollTimeout)*time.Second)
@@ -175,7 +175,7 @@ func procMsg(msg router.Message, client *ilink.Client, state *router.State, pm *
 	// Show welcome message to new users (non-command messages)
 	if state.ShouldShowStatus(accountID, uid) && !hasPrefix(txt, "/") {
 		// Build welcome message directly instead of using /whoami command
-		defaultAgent := state.GetDefaultAgentForAccount(accountID)
+		defaultAgent := state.GetDefaultAgentForBot(accountID)
 		agent, _ := state.GetAgent(defaultAgent)
 		welcomeMsg := fmt.Sprintf("**MAClawBot** by Github @ian4hu\n**Current agent**: **%s** (port %d)\n\n**Commands:**\n- `/clawbot` - Show clawbot help\n- `/clawbot list` - List all agents\n- `/clawbot new <name>` - Create new agent\n- `/clawbot set <name>` - Switch to agent", defaultAgent, agent.Port)
 		client.SendText(uid, welcomeMsg, ctx)
@@ -197,7 +197,7 @@ func procMsg(msg router.Message, client *ilink.Client, state *router.State, pm *
 	}
 
 	// Route message to the account's default agent
-	defaultAgent := state.GetDefaultAgentForAccount(accountID)
+	defaultAgent := state.GetDefaultAgentForBot(accountID)
 	pm.Enqueue(accountID, defaultAgent, msg)
 }
 

@@ -137,13 +137,13 @@ func (h *ProxyHandler) handleSendMessage(w http.ResponseWriter, r *http.Request,
 	h.forwardToILink(w, r, "ilink/bot/sendmessage", req)
 }
 
-// tokenForAccount looks up the iLink token for a given accountID.
+// tokenForBot looks up the iLink token for a given accountID.
 // Returns empty string if account not found.
-func (h *ProxyHandler) tokenForAccount(accountID string) string {
+func (h *ProxyHandler) tokenForBot(accountID string) string {
 	if accountID == "" {
 		return ""
 	}
-	account, ok := h.State.GetAccount(accountID)
+	account, ok := h.State.GetBot(accountID)
 	if !ok {
 		log.Printf("Account not found: %s", accountID)
 		return ""
@@ -184,7 +184,7 @@ func (h *ProxyHandler) forwardToILink(w http.ResponseWriter, r *http.Request, ep
 		// Extract accountID from queueName (format: accountID_agentName)
 		parts := strings.SplitN(queueName, "_", 2)
 		if len(parts) >= 1 {
-			token = h.tokenForAccount(parts[0])
+			token = h.tokenForBot(parts[0])
 		}
 	}
 
@@ -192,7 +192,7 @@ func (h *ProxyHandler) forwardToILink(w http.ResponseWriter, r *http.Request, ep
 	if token == "" {
 		if reqMap, ok := reqBody.(map[string]interface{}); ok {
 			if toUserID, ok := reqMap["to_user_id"].(string); ok {
-				token = h.tokenForAccount(toUserID)
+				token = h.tokenForBot(toUserID)
 			}
 		}
 	}

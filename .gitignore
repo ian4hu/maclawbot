@@ -2,3 +2,4 @@
 *.json
 .env
 maclawbot
+proxy.test

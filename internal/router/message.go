@@ -118,34 +118,34 @@ func ProcessCommand(state *State, text string) CmdResult {
 
 	return CmdResult{IsHandled: false}
 }
-func processAccountCommand(state *State, text string) CmdResult {
+func processBotCommand(state *State, text string) CmdResult {
 	parts := strings.Fields(text)
 	if len(parts) < 2 {
-		return listAccounts(state)
+		return listBots(state)
 	}
 
 	subcmd := parts[1]
 
 	switch subcmd {
 	case "help":
-		return listAccounts(state) // help is shown as part of list
+		return listBots(state) // help is shown as part of list
 	case "list":
-		return listAccounts(state)
+		return listBots(state)
 	case "add":
-		return handleAddAccount(state, parts)
+		return handleAddBot(state, parts)
 	case "del":
 		if len(parts) < 3 {
-			return CmdResult{Text: "Usage: /clawbot account del <account_id>", IsHandled: true}
+			return CmdResult{Text: "Usage: /clawbot bot del <bot_id>", IsHandled: true}
 		}
-		accountID := parts[2]
-		if err := state.RemoveAccount(accountID); err != nil {
+		botID := parts[2]
+		if err := state.RemoveBot(botID); err != nil {
 			return CmdResult{Text: "Error: " + err.Error(), IsHandled: true}
 		}
-		return CmdResult{Text: fmt.Sprintf("Account **%s** removed.", accountID), IsHandled: true}
+		return CmdResult{Text: fmt.Sprintf("Bot **%s** removed.", botID), IsHandled: true}
 	case "set":
-		return handleSetAccount(state, parts)
+		return handleSetBot(state, parts)
 	default:
-		return listAccounts(state)
+		return listBots(state)
 	}
 }
 
@@ -157,44 +157,44 @@ func maskToken(token string) string {
 	return token[:8] + "..." + token[len(token)-4:]
 }
 
-// listAccounts returns a formatted list of all configured accounts.
-func listAccounts(state *State) CmdResult {
-	accounts := state.GetAccounts()
+// listBots returns a formatted list of all configured bots.
+func listBots(state *State) CmdResult {
+	bots := state.GetBots()
 
 	var lines []string
-	lines = append(lines, "**Accounts:**\n")
-	if len(accounts) == 0 {
+	lines = append(lines, "**Bots:**\n")
+	if len(bots) == 0 {
 		lines = append(lines, "  (none configured)")
 	} else {
-		for _, acc := range accounts {
+		for _, bot := range bots {
 			status := "✅ enabled"
-			if !acc.Enabled {
+			if !bot.Enabled {
 				status = "❌ disabled"
 			}
-			masked := maskToken(acc.Token)
+			masked := maskToken(bot.Token)
 			lines = append(lines, fmt.Sprintf("- **%s** (token: `%s`, default: %s, %s)",
-				acc.AccountID, masked, acc.DefaultAgent, status))
+				bot.AccountID, masked, bot.DefaultAgent, status))
 		}
 	}
 
 	lines = append(lines, "")
 	lines = append(lines, "**Commands:**")
-	lines = append(lines, "- `/clawbot account list` - List all accounts")
-	lines = append(lines, "- `/clawbot account add <id> <token> [default_agent]` - Add account")
-	lines = append(lines, "- `/clawbot account del <id>` - Remove account")
-	lines = append(lines, "- `/clawbot account set <id> [default_agent]` - Set account's default agent")
+	lines = append(lines, "- `/clawbot bot list` - List all bots")
+	lines = append(lines, "- `/clawbot bot add <id> <token> [default_agent]` - Add bot")
+	lines = append(lines, "- `/clawbot bot del <id>` - Remove bot")
+	lines = append(lines, "- `/clawbot bot set <id> [default_agent]` - Set bot's default agent")
 
 	return CmdResult{Text: strings.Join(lines, "\n"), IsHandled: true}
 }
 
-// handleAddAccount creates a new account.
-// Syntax: /clawbot account add <account_id> <token> [default_agent]
-func handleAddAccount(state *State, parts []string) CmdResult {
+// handleAddBot creates a new bot.
+// Syntax: /clawbot bot add <bot_id> <token> [default_agent]
+func handleAddBot(state *State, parts []string) CmdResult {
 	if len(parts) < 4 {
-		return CmdResult{Text: "Usage: /clawbot account add <account_id> <token> [default_agent]\nExample: /clawbot account add botA xb2c...mhk4 hermes", IsHandled: true}
+		return CmdResult{Text: "Usage: /clawbot bot add <bot_id> <token> [default_agent]\nExample: /clawbot bot add botA xb2c...mhk4 hermes", IsHandled: true}
 	}
 
-	accountID := parts[2]
+	botID := parts[2]
 	token := parts[3]
 	defaultAgent := "hermes"
 	if len(parts) >= 5 {
@@ -205,30 +205,30 @@ func handleAddAccount(state *State, parts []string) CmdResult {
 		}
 	}
 
-	account := Account{
-		AccountID:    accountID,
+	bot := Bot{
+		AccountID:    botID,
 		Token:        token,
 		DefaultAgent: defaultAgent,
 		Enabled:      true,
 	}
 
-	if err := state.AddAccount(account); err != nil {
+	if err := state.AddBot(bot); err != nil {
 		return CmdResult{Text: "Error: " + err.Error(), IsHandled: true}
 	}
-	return CmdResult{Text: fmt.Sprintf("Account **%s** added with default agent **%s**.", accountID, defaultAgent), IsHandled: true}
+	return CmdResult{Text: fmt.Sprintf("Bot **%s** added with default agent **%s**.", botID, defaultAgent), IsHandled: true}
 }
 
-// handleSetAccount updates account settings.
-// Syntax: /clawbot account set <account_id> [default_agent]
-func handleSetAccount(state *State, parts []string) CmdResult {
+// handleSetBot updates bot settings.
+// Syntax: /clawbot bot set <bot_id> [default_agent]
+func handleSetBot(state *State, parts []string) CmdResult {
 	if len(parts) < 3 {
-		return CmdResult{Text: "Usage: /clawbot account set <account_id> [default_agent]\nExample: /clawbot account set botA claude", IsHandled: true}
+		return CmdResult{Text: "Usage: /clawbot bot set <bot_id> [default_agent]\nExample: /clawbot bot set botA claude", IsHandled: true}
 	}
 
-	accountID := parts[2]
-	account, exists := state.GetAccount(accountID)
+	botID := parts[2]
+	bot, exists := state.GetBot(botID)
 	if !exists {
-		return CmdResult{Text: fmt.Sprintf("Error: account %s not found", accountID), IsHandled: true}
+		return CmdResult{Text: fmt.Sprintf("Error: bot %s not found", botID), IsHandled: true}
 	}
 
 	if len(parts) >= 4 {
@@ -237,20 +237,20 @@ func handleSetAccount(state *State, parts []string) CmdResult {
 		if _, exists := state.GetAgent(agentName); !exists {
 			return CmdResult{Text: fmt.Sprintf("Error: agent %s not found", agentName), IsHandled: true}
 		}
-		if err := state.SetAccountDefaultAgent(accountID, agentName); err != nil {
+		if err := state.SetBotDefaultAgent(botID, agentName); err != nil {
 			return CmdResult{Text: "Error: " + err.Error(), IsHandled: true}
 		}
-		return CmdResult{Text: fmt.Sprintf("Account **%s** default agent set to **%s**.", accountID, agentName), IsHandled: true}
+		return CmdResult{Text: fmt.Sprintf("Bot **%s** default agent set to **%s**.", botID, agentName), IsHandled: true}
 	}
 
 	// Show current settings
-	masked := maskToken(account.Token)
+	masked := maskToken(bot.Token)
 	status := "enabled"
-	if !account.Enabled {
+	if !bot.Enabled {
 		status = "disabled"
 	}
-	return CmdResult{Text: fmt.Sprintf("**Account: %s**\nToken: `%s`\nDefault agent: %s\nStatus: %s",
-		accountID, masked, account.DefaultAgent, status), IsHandled: true}
+	return CmdResult{Text: fmt.Sprintf("**Bot: %s**\nToken: `%s`\nDefault agent: %s\nStatus: %s",
+		botID, masked, bot.DefaultAgent, status), IsHandled: true}
 }
 
 // processClawbotCommand handles all /clawbot subcommands:
@@ -268,10 +268,10 @@ func processClawbotCommand(state *State, text string) CmdResult {
 		return CmdResult{Text: formatClawbotHelp(), IsHandled: true}
 	case "list":
 		return listAgents(state)
-	case "account":
+	case "bot":
 		// Strip "/clawbot " prefix so parts[1] is the subcommand (add/list/del/set)
 		accountText := strings.TrimPrefix(text, "/clawbot ")
-		return processAccountCommand(state, accountText)
+		return processBotCommand(state, accountText)
 	case "set":
 		return handleSetAgent(state, parts)
 	case "new":
@@ -312,22 +312,22 @@ func handleSetAgent(state *State, parts []string) CmdResult {
 		return CmdResult{Text: fmt.Sprintf("Error: agent %s not found", agentName), IsHandled: true}
 	}
 	
-	var targetAccount string
+	var targetBot string
 	if len(parts) >= 4 {
-		targetAccount = parts[3]
+		targetBot = parts[3]
 	} else {
-		// Default to first account if any exist
-		accounts := state.GetAccounts()
-		if len(accounts) == 0 {
-			return CmdResult{Text: "Error: no accounts configured. Add an account first with /clawbot account add", IsHandled: true}
+		// Default to first bot if any exist
+		bots := state.GetBots()
+		if len(bots) == 0 {
+			return CmdResult{Text: "Error: no bots configured. Add a bot first with /clawbot bot add", IsHandled: true}
 		}
-		targetAccount = accounts[0].AccountID
+		targetBot = bots[0].AccountID
 	}
-	
-	if err := state.SetAccountDefaultAgent(targetAccount, agentName); err != nil {
+
+	if err := state.SetBotDefaultAgent(targetBot, agentName); err != nil {
 		return CmdResult{Text: "Error: " + err.Error(), IsHandled: true}
 	}
-	return CmdResult{Text: fmt.Sprintf("Switched account **%s** to agent **%s**.", targetAccount, agentName), IsHandled: true}
+	return CmdResult{Text: fmt.Sprintf("Switched bot **%s** to agent **%s**.", targetBot, agentName), IsHandled: true}
 }
 
 // handleNewAgent creates a new agent with optional custom tag.
@@ -404,16 +404,16 @@ func listAgents(state *State) CmdResult {
 	lines = append(lines, "**Available Agents:**\n")
 	for name, agent := range agents {
 		portInfo := fmt.Sprintf("port %d", agent.Port)
-		// Find accounts that use this agent as default
-		accounts := state.GetAccounts()
-		defaultAccounts := []string{}
-		for _, acc := range accounts {
-			if acc.DefaultAgent == name {
-				defaultAccounts = append(defaultAccounts, acc.AccountID)
+		// Find bots that use this agent as default
+		bots := state.GetBots()
+		defaultBots := []string{}
+		for _, bot := range bots {
+			if bot.DefaultAgent == name {
+				defaultBots = append(defaultBots, bot.AccountID)
 			}
 		}
-		if len(defaultAccounts) > 0 {
-			portInfo += fmt.Sprintf(" (default for %s)", strings.Join(defaultAccounts, ", "))
+		if len(defaultBots) > 0 {
+			portInfo += fmt.Sprintf(" (default for %s)", strings.Join(defaultBots, ", "))
 		}
 		lines = append(lines, fmt.Sprintf("- **%s**: %s", name, portInfo))
 	}
@@ -427,34 +427,34 @@ func listAgents(state *State) CmdResult {
 }
 
 // formatAgentInfo returns detailed information about an agent.
-// If agentName is empty, shows info for the first account's default agent.
+// If agentName is empty, shows info for the first bot's default agent.
 func formatAgentInfo(state *State, agentName string) string {
 	if agentName == "" {
-		accounts := state.GetAccounts()
-		if len(accounts) > 0 {
-			agentName = accounts[0].DefaultAgent
+		bots := state.GetBots()
+		if len(bots) > 0 {
+			agentName = bots[0].DefaultAgent
 		}
 	}
-	
+
 	agent, ok := state.GetAgent(agentName)
 	if !ok {
 		return fmt.Sprintf("Agent **%s** not found.", agentName)
 	}
 
-	// Find accounts that use this agent as default
-	accounts := state.GetAccounts()
-	defaultAccounts := []string{}
-	for _, acc := range accounts {
-		if acc.DefaultAgent == agentName {
-			defaultAccounts = append(defaultAccounts, acc.AccountID)
+	// Find bots that use this agent as default
+	bots := state.GetBots()
+	defaultBots := []string{}
+	for _, bot := range bots {
+		if bot.DefaultAgent == agentName {
+			defaultBots = append(defaultBots, bot.AccountID)
 		}
 	}
-	
+
 	var defaultInfo string
-	if len(defaultAccounts) > 0 {
-		defaultInfo = fmt.Sprintf("(default for %s)", strings.Join(defaultAccounts, ", "))
+	if len(defaultBots) > 0 {
+		defaultInfo = fmt.Sprintf("(default for %s)", strings.Join(defaultBots, ", "))
 	} else {
-		defaultInfo = "(not default for any account)"
+		defaultInfo = "(not default for any bot)"
 	}
 
 	return fmt.Sprintf("**Agent: %s**\n"+

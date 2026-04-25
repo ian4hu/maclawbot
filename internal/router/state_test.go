@@ -159,28 +159,28 @@ func TestSetDefaultAgent(t *testing.T) {
 	defer os.Remove(tmpFile)
 
 	state := NewState(tmpFile)
-	if err := state.AddAccount(Account{AccountID: "test_account"}); err != nil {
+	if err := state.AddBot(Bot{AccountID: "test_account"}); err != nil {
 		t.Fatalf("Failed to add account: %v", err)
 	}
 
 	// Initially hermes should be default (fallback)
-	defaultAgent := state.GetDefaultAgentForAccount("test_account")
+	defaultAgent := state.GetDefaultAgentForBot("test_account")
 	if defaultAgent != "hermes" {
 		t.Errorf("Expected default agent to be hermes, got %s", defaultAgent)
 	}
 
 	// Switch to openclaw
-	if err := state.SetAccountDefaultAgent("test_account", "openclaw"); err != nil {
+	if err := state.SetBotDefaultAgent("test_account", "openclaw"); err != nil {
 		t.Fatalf("Failed to set default agent: %v", err)
 	}
 
-	defaultAgent = state.GetDefaultAgentForAccount("test_account")
+	defaultAgent = state.GetDefaultAgentForBot("test_account")
 	if defaultAgent != "openclaw" {
 		t.Errorf("Expected default agent to be openclaw, got %s", defaultAgent)
 	}
 
 	// Try to set non-existent agent as default
-	err := state.SetAccountDefaultAgent("test_account", "nonexistent")
+	err := state.SetBotDefaultAgent("test_account", "nonexistent")
 	if err == nil {
 		t.Error("Expected error when setting non-existent agent as default")
 	}
@@ -221,7 +221,7 @@ func TestShouldShowStatus(t *testing.T) {
 	defer os.Remove(tmpFile)
 
 	state := NewState(tmpFile)
-	if err := state.AddAccount(Account{AccountID: "test_account"}); err != nil {
+	if err := state.AddBot(Bot{AccountID: "test_account"}); err != nil {
 		t.Fatalf("Failed to add account: %v", err)
 	}
 
@@ -246,7 +246,7 @@ func TestConcurrentStateAccess(t *testing.T) {
 	defer os.Remove(tmpFile)
 
 	state := NewState(tmpFile)
-	if err := state.AddAccount(Account{AccountID: "test_account"}); err != nil {
+	if err := state.AddBot(Bot{AccountID: "test_account"}); err != nil {
 		t.Fatalf("Failed to add account: %v", err)
 	}
 
@@ -256,7 +256,7 @@ func TestConcurrentStateAccess(t *testing.T) {
 	go func() {
 		for i := 0; i < 100; i++ {
 			state.GetAgents()
-			state.GetDefaultAgentForAccount("test_account")
+			state.GetDefaultAgentForBot("test_account")
 			state.ShouldShowStatus("test_account", "user")
 		}
 		done <- true
@@ -272,7 +272,7 @@ func TestConcurrentStateAccess(t *testing.T) {
 				Enabled: true,
 			}
 			state.AddAgent(agent)
-			state.SetAccountDefaultAgent("test_account", "hermes")
+			state.SetBotDefaultAgent("test_account", "hermes")
 			state.MarkStatusShown("test_account", "user")
 		}
 		done <- true
