@@ -380,7 +380,7 @@ func (pm *ProxyManager) StartAgent(agent router.Agent) error {
 		return nil
 	}
 
-	handler := NewProxyHandler(pm, pm.state, pm.ilinkBaseURL, pm.pollTimeout, agent)
+	handler := NewProxyHandler(pm, pm.state, pm.ilinkBaseURL, pm.pollTimeout, &agent)
 
 	addr := fmt.Sprintf("127.0.0.1:%d", agent.Port)
 	srv := &http.Server{
