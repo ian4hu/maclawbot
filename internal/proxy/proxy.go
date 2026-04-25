@@ -189,7 +189,6 @@ func (h *ProxyHandler) proxyPassthrough(w http.ResponseWriter, r *http.Request, 
 
 // forwardToILink forwards a request to the real iLink API.
 // Adds authentication headers and copies the response back to the gateway.
-// Token is determined by: X-Queue-Name header (for getupdates) or to_user_id in body (for sendmessage).
 func (h *ProxyHandler) forwardToILink(w http.ResponseWriter, r *http.Request, ep string, reqBody interface{}) {
 	url := h.ILinkBaseURL + "/" + ep
 

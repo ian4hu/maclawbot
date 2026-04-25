@@ -24,11 +24,13 @@ type VoiceItem struct {
 
 // ImageItem represents an image message.
 type ImageItem struct {
-	MD5    string `json:"md5"`    // File MD5
-	Size   int64  `json:"size"`   // File size in bytes
-	Width  int    `json:"width"`  // Image width
-	Height int    `json:"height"` // Image height
-	AesKey string `json:"aeskey"` // AES-128-ECB encryption key
+	AESKey      string `json:"aeskey,omitempty"`
+	URL         string `json:"url,omitempty"`
+	MidSize     int64  `json:"mid_size,omitempty"`
+	ThumbSize   int64  `json:"thumb_size,omitempty"`
+	ThumbWidth  int    `json:"thumb_width,omitempty"`
+	ThumbHeight int    `json:"thumb_height,omitempty"`
+	HDSize      int64  `json:"hd_size,omitempty"`
 }
 
 // VideoItem represents a video message.
