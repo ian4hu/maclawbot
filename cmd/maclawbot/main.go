@@ -44,23 +44,26 @@ func main() {
 	cfg := config.Load()
 	setupLogging(cfg.LogFile)
 
-	// Initialize state management (loads persisted agents and accounts)
+	// Initialize state management (loads persisted agents and bots)
 	state := router.NewState(cfg.StateFile)
 
-	accounts := state.GetEnabledBots()
-	if len(accounts) == 0 && cfg.ILinkToken == "" {
-		log.Fatal("No ILINK_TOKEN set and no accounts configured!")
+	bots := state.GetEnabledBots()
+	if len(bots) == 0 && cfg.ILinkToken == "" {
+		log.Fatal("No ILINK_TOKEN set and no bots configured!")
 	}
 
-	if len(accounts) == 0 {
-		log.Println("No accounts configured, using ILINK_TOKEN create default bot")
+	_, hasDefaultBot := state.GetBot("default")
+	_, tokenUsed := state.GetBotByToken(cfg.ILinkToken)
+
+	if cfg.ILinkBaseURL != "" && !hasDefaultBot && !tokenUsed {
+		log.Println("No default bot configured, using ILINK_TOKEN create default bot")
 		state.AddBot(router.Bot{
 			AccountID:    "default",
-			DefaultAgent: "default",
+			DefaultAgent: "",
 			Enabled:      true,
 			Token:        cfg.ILinkToken,
 		})
-		accounts = state.GetEnabledBots()
+		bots = state.GetEnabledBots()
 	}
 
 	// Initialize proxy manager and start all agent servers
@@ -79,8 +82,8 @@ func main() {
 
 	// Start the poll loop(s) in background
 	ctx, cancel := context.WithCancel(context.Background())
-	for _, bot := range accounts {
-		go pollLoop(ctx, bot.Token, cfg.ILinkBaseURL, state, pm, time.Duration(cfg.PollTimeout)*time.Second)
+	for _, bot := range bots {
+		go pollLoop(ctx, &bot, cfg.ILinkBaseURL, state, pm, time.Duration(cfg.PollTimeout)*time.Second)
 	}
 
 	// Wait for shutdown signal
@@ -97,13 +100,13 @@ func main() {
 // pollLoop continuously polls iLink for new messages and routes them to agents.
 // Implements exponential backoff on errors to prevent hammering the API.
 // One pollLoop is started per enabled account.
-func pollLoop(ctx context.Context, token string, baseURL string, state *router.State, pm *proxy.ProxyManager, pollTimeout time.Duration) {
+func pollLoop(ctx context.Context, bot *router.Bot, baseURL string, state *router.State, pm *proxy.ProxyManager, pollTimeout time.Duration) {
 	const (
 		maxFails = 3                // Max consecutive failures before backoff
 		backoff  = 30 * time.Second // Backoff duration after max failures
 	)
 
-	client := ilink.NewClient(baseURL, token)
+	client := ilink.NewClient(baseURL, bot.Token)
 
 	buf := ""
 	fails := 0
@@ -141,7 +144,7 @@ func pollLoop(ctx context.Context, token string, baseURL string, state *router.S
 
 		// Process each incoming message
 		for _, msg := range resp.Msgs {
-			procMsg(msg, client, state, pm)
+			procMsg(bot, msg, client, state, pm)
 		}
 	}
 }
@@ -159,7 +162,7 @@ func handleFailure(fails, maxFails int, backoff time.Duration) int {
 
 // procMsg processes a single incoming message from iLink.
 // Handles commands, shows welcome message to new users, and routes to agents.
-func procMsg(msg router.Message, client *ilink.Client, state *router.State, pm *proxy.ProxyManager) {
+func procMsg(bot *router.Bot, msg router.Message, client *ilink.Client, state *router.State, pm *proxy.ProxyManager) {
 	accountID := msg.ToUserID
 	uid := msg.FromUserID
 	ctx := msg.ContextToken
@@ -169,7 +172,7 @@ func procMsg(msg router.Message, client *ilink.Client, state *router.State, pm *
 		return
 	}
 
-	log.Printf("Msg from=%s... items=%d", uid[:min(16, len(uid))], len(msg.ItemList))
+	log.Printf("Msg bot=%s from=%s... items=%d", bot.AccountID, uid[:min(16, len(uid))], len(msg.ItemList))
 
 	txt := router.ExtractText(msg.ItemList)
 
@@ -203,15 +206,6 @@ func procMsg(msg router.Message, client *ilink.Client, state *router.State, pm *
 		}
 	}
 
-	// Route message to the account's default agent
-	bot, ok := state.GetBot(accountID)
-	if !ok {
-		bot, ok = state.GetBot("default")
-	}
-	if !ok {
-		log.Printf("Bot not found: %s", accountID)
-		return
-	}
 	pm.Enqueue(bot.AccountID, bot.DefaultAgent, msg)
 }
 
