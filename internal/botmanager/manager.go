@@ -147,7 +147,7 @@ func (m *Manager) runPollLoop(ctx context.Context, bot router.Bot) {
 
 		botPtr := &bot
 		for _, msg := range resp.Msgs {
-			log.Printf("Incoming message (bot=%s): fromUserId=%s", bot.BotID, msg.FromUserID)
+			log.Printf("Incoming message (bot=%s): %s -> %s", bot.BotID, msg.FromUserID, msg.ToUserID)
 			m.bus.Publish(event.MessageEvent{
 				Bot:    botPtr,
 				Msg:    msg,
