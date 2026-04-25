@@ -38,7 +38,8 @@ type BotResolver interface {
 // ProxyHandler handles HTTP requests from an AI gateway.
 // It queues incoming messages for the router and forwards outbound messages to iLink.
 // One ProxyHandler instance is shared across all accounts that use the same agent.
-// Account context is determined by X-Queue-Name header or to_user_id in request body.
+// Bot context is determined by the Authorization header (Bearer token) in the request.
+// The token maps to a Bot via GetBotByToken, which determines the queue key.
 type ProxyHandler struct {
 	pm           *ProxyManager // Reference to proxy manager for queue lookup
 	botResolver  BotResolver   // Resolves bot info from token or name
