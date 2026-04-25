@@ -4,7 +4,9 @@ package botmanager
 
 import (
 	"context"
+	"errors"
 	"log"
+	"net"
 	"sync"
 	"time"
 
@@ -127,6 +129,11 @@ func (m *Manager) runPollLoop(ctx context.Context, bot router.Bot) {
 
 		resp, err := client.GetUpdates(buf, pollTimeoutHTTP)
 		if err != nil {
+			if isTimeout(err) {
+				// Long-poll timeout is expected — no new messages in this window.
+				// Don't increment failure count or trigger backoff.
+				continue
+			}
 			log.Printf("getUpdates error (bot=%s): %v", bot.BotID, err)
 			fails++
 			fails = handleFailure(fails, maxFails, backoff)
@@ -155,6 +162,21 @@ func (m *Manager) runPollLoop(ctx context.Context, bot router.Bot) {
 			})
 		}
 	}
+}
+
+// isTimeout checks if an error is a network timeout.
+// Long-polling naturally times out when no messages arrive — this is expected,
+// not a failure. Only connection refused, DNS errors, etc. are real failures.
+func isTimeout(err error) bool {
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return true
+	}
+	// Also check for wrapped context deadline exceeded
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	return false
 }
 
 // handleFailure manages error backoff logic.
