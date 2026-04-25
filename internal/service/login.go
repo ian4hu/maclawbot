@@ -6,6 +6,7 @@ import (
 	"log"
 	"time"
 
+	"maclawbot/internal/event"
 	"maclawbot/internal/ilink"
 	"maclawbot/internal/router"
 )
@@ -22,7 +23,8 @@ const (
 //   - ctxToken: context token for replies
 //   - client: the existing bot's iLink client (for sending status messages to user)
 //   - state: shared state (to persist the new bot)
-func StartBotLogin(baseURL, uid, ctxToken string, client *ilink.Client, state *router.State) {
+//   - bus: event bus (to publish BotAddedEvent after confirmation)
+func StartBotLogin(baseURL, uid, ctxToken string, client *ilink.Client, state *router.State, bus *event.Bus) {
 	// Create a client without auth token for QR code operations
 	qrClient := ilink.NewClient(baseURL, "")
 
@@ -102,6 +104,9 @@ func StartBotLogin(baseURL, uid, ctxToken string, client *ilink.Client, state *r
 				client.SendText(uid, fmt.Sprintf("✅ 登录成功！但保存配置失败: %v\nBot ID: `%s`\nToken: `%s`\nBaseURL: `%s`", err, botID, maskToken(token), effectiveBaseURL), ctxToken)
 				return
 			}
+
+			// Publish event so BotManager starts polling for the new bot
+			bus.Publish(event.BotAddedEvent{Bot: bot})
 
 			confirmMsg := fmt.Sprintf(
 				"✅ **登录成功！**\n\n"+

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -13,15 +12,16 @@ import (
 
 	"github.com/joho/godotenv"
 
+	"maclawbot/internal/botmanager"
 	"maclawbot/internal/config"
-	"maclawbot/internal/poller"
+	"maclawbot/internal/event"
 	"maclawbot/internal/proxy"
 	"maclawbot/internal/router"
 	"maclawbot/internal/service"
 )
 
 var (
-	Version = "2.1.0"
+	Version = "2.2.0"
 )
 
 func main() {
@@ -73,7 +73,7 @@ func main() {
 
 	// Log startup information
 	log.Println("================================================================================")
-	log.Printf("MAClawBot v%s -- dynamic agent proxy", Version)
+	log.Printf("MAClawBot v%s -- event-driven agent proxy", Version)
 	log.Printf("iLink: %s", cfg.ILinkBaseURL)
 	log.Printf("Agents:")
 	for name, agent := range state.GetAgents() {
@@ -81,15 +81,21 @@ func main() {
 	}
 	log.Println("================================================================================")
 
-	// Create message service (bridges poller, state, and proxy)
-	msgService := service.NewMessageService(state, pm, cfg.ILinkBaseURL)
+	// Create event bus
+	bus := event.NewBus()
 
-	// Start the poll loop(s) in background — one per enabled bot
-	ctx, cancel := context.WithCancel(context.Background())
-	for _, bot := range bots {
-		p := poller.New(&bot, cfg.ILinkBaseURL, msgService, time.Duration(cfg.PollTimeout)*time.Second)
-		go p.Run(ctx)
-	}
+	// BotManager: publishes MessageEvents, subscribes to BotAdded/BotRemoved
+	pollTimeout := time.Duration(cfg.PollTimeout) * time.Second
+	botMgr := botmanager.New(state, cfg.ILinkBaseURL, pollTimeout, bus)
+	bus.Subscribe(botMgr)
+
+	// Message subscribers (order = priority: welcome → command → proxy)
+	bus.Subscribe(service.NewWelcomeSubscriber(state))
+	bus.Subscribe(service.NewCommandSubscriber(state, pm, cfg.ILinkBaseURL, bus))
+	bus.Subscribe(service.NewProxySubscriber(pm))
+
+	// Start polling for all enabled bots
+	botMgr.StartAll()
 
 	// Wait for shutdown signal
 	quit := make(chan os.Signal, 1)
@@ -97,7 +103,7 @@ func main() {
 	<-quit
 
 	log.Println("Shutting down...")
-	cancel()
+	botMgr.StopAll()
 	pm.StopAll()
 	log.Println("Stopped")
 }
