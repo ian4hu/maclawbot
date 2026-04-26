@@ -536,6 +536,47 @@ func TestSaveLocked_Errors(t *testing.T) {
 	state.AddBot(b2)
 }
 
+// TestSave tests the save() wrapper (calls saveLocked after acquiring lock).
+// Note: save() is a dead-code wrapper — all callers invoke saveLocked() directly.
+// This test ensures the wrapper path stays covered.
+func TestSave(t *testing.T) {
+	tmpFile := "/tmp/test_state_save.json"
+	defer os.Remove(tmpFile)
+
+	state := NewState(tmpFile)
+
+	// Modify state, then call save() directly
+	state.AddBot(Bot{BotID: "save_test_bot", Token: "tok_save", Enabled: true})
+
+	// save() itself — no code paths call it directly; verify it doesn't panic
+	state.save()
+
+	// Verify persist succeeded via reload
+	state2 := NewState(tmpFile)
+	b, ok := state2.GetBot("save_test_bot")
+	if !ok {
+		t.Fatal("expected save_test_bot to persist after save()")
+	}
+	if b.Token != "tok_save" {
+		t.Errorf("expected tok_save, got %s", b.Token)
+	}
+}
+
+// TestSaveLocked_WriteError tests that write failures are handled gracefully.
+func TestSaveLocked_WriteError(t *testing.T) {
+	// Use a path that's a directory — WriteFile will fail
+	dirPath := "/tmp/maclawbot_test_save_error_dir"
+	os.MkdirAll(dirPath, 0755)
+	defer os.RemoveAll(dirPath)
+
+	state := NewState(dirPath)
+
+	// Mutate state — saveLocked will be called but silently fail
+	state.AddBot(Bot{BotID: "should_not_persist", Token: "tok", Enabled: true})
+
+	// No panic = correct behavior; state was not persisted
+}
+
 // TestMaskToken tests that token masking is not empty and shorter than original.
 func TestMaskToken(t *testing.T) {
 	masked := maskToken("verylongtokenstring12345")

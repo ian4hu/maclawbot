@@ -103,7 +103,7 @@ func handleAddBot(state *State, parts []string) CmdResult {
 		}
 	}
 
-	bot := Bot{
+bot := Bot{
 		BotID:        botID,
 		Token:        token,
 		DefaultAgent: defaultAgent,
@@ -111,9 +111,14 @@ func handleAddBot(state *State, parts []string) CmdResult {
 	}
 
 	if err := state.AddBot(bot); err != nil {
-		return CmdResult{Text: "Error: " + err.Error(), IsHandled: true}
+		return CmdResult{Text: fmt.Sprintf("Error: %v", err), IsHandled: true}
 	}
-	return CmdResult{Text: fmt.Sprintf("Bot **%s** added with default agent **%s**.", botID, defaultAgent), IsHandled: true, Action: "bot_add", BotID: botID}
+	return CmdResult{
+		Text:      fmt.Sprintf("Bot **%s** added (token: `%s`). Use `/clawbot bot setup <agent> %s` to configure it.", botID, maskToken(token), botID),
+		IsHandled: true,
+		Action:    "bot_add",
+		BotID:     botID,
+	}
 }
 
 // handleSetBot updates bot settings.
