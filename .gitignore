@@ -3,3 +3,5 @@
 .env
 /maclawbot
 proxy.test
+*.test
+*.out
