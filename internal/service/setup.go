@@ -70,7 +70,7 @@ func setupOpenClaw(bot router.Bot, agent router.Agent) (string, error) {
 
 // updateOpenClawRegistry adds an account ID to the openclaw accounts.json array if not present.
 func updateOpenClawRegistry(acctDir, acctID string) error {
-	regFile := filepath.Join(acctDir, "accounts.json")
+	regFile := acctDir + ".json"
 
 	// Read existing registry
 	var ids []string

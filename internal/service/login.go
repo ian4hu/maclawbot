@@ -17,7 +17,7 @@ const (
 )
 
 // StartBotLogin initiates the QR code login flow for adding a new bot.
-// It runs asynchronously: sends QR code, polls status, and adds bot on confirmation.
+// It runs asynchronously: sends QR code, polls status, and adds/updates bot on confirmation.
 //   - baseURL: iLink API base URL
 //   - uid: user ID to send status updates to
 //   - ctxToken: context token for replies
@@ -92,7 +92,61 @@ func StartBotLogin(baseURL, uid, ctxToken string, client *ilink.Client, state *r
 				effectiveBaseURL = baseURL
 			}
 
-			// Add the new bot to state
+			// Check if a bot with this token already exists
+			if existingBot, exists := state.GetBotByToken(token); exists {
+				// Bot with this token already exists - update its BotID and enable it
+				updatedBot := existingBot
+				updatedBot.BotID = botID
+				updatedBot.Enabled = true
+				if err := state.UpdateBot(updatedBot); err != nil {
+					log.Printf("BotLogin: failed to update bot %s: %v", botID, err)
+					client.SendText(uid, fmt.Sprintf("✅ 扫码成功！但更新配置失败: %v\nBot ID: `%s`\nToken: `%s`", err, botID, maskToken(token)), ctxToken)
+					return
+				}
+
+				// Publish event so BotManager updates the poll loop
+				bus.Publish(event.BotAddedEvent{Bot: updatedBot})
+
+				confirmMsg := fmt.Sprintf(
+					"🔄 **Bot 已更新！**\n\n"+
+						"- Bot ID: `%s`\n"+
+						"- Token: `%s`\n\n"+
+						"该 Bot 已重新启用，继续使用原有配置。",
+					botID, maskToken(token),
+				)
+				client.SendText(uid, confirmMsg, ctxToken)
+				log.Printf("BotLogin: qrcode=%s confirmed, bot=%s updated (token match)", qrResp.QRCode[:minStr(16, len(qrResp.QRCode))], botID)
+				return
+			}
+
+			// New bot - check if BotID already exists
+			if _, exists := state.GetBot(botID); exists {
+				// BotID exists but with different token - update it
+				updatedBot := router.Bot{
+					BotID:        botID,
+					Token:        token,
+					DefaultAgent: "hermes",
+					Enabled:      true,
+				}
+				if err := state.UpdateBot(updatedBot); err != nil {
+					log.Printf("BotLogin: failed to update bot %s: %v", botID, err)
+					client.SendText(uid, fmt.Sprintf("✅ 扫码成功！但更新配置失败: %v\nBot ID: `%s`\nToken: `%s`", err, botID, maskToken(token)), ctxToken)
+					return
+				}
+				bus.Publish(event.BotAddedEvent{Bot: updatedBot})
+				confirmMsg := fmt.Sprintf(
+					"🔄 **Bot 已更新！**\n\n"+
+						"- Bot ID: `%s`\n"+
+						"- Token: `%s`\n\n"+
+						"该 Bot Token 已更新。",
+					botID, maskToken(token),
+				)
+				client.SendText(uid, confirmMsg, ctxToken)
+				log.Printf("BotLogin: qrcode=%s confirmed, bot=%s updated (BotID exists)", qrResp.QRCode[:minStr(16, len(qrResp.QRCode))], botID)
+				return
+			}
+
+			// Brand new bot - add it
 			bot := router.Bot{
 				BotID:        botID,
 				Token:        token,
@@ -101,7 +155,7 @@ func StartBotLogin(baseURL, uid, ctxToken string, client *ilink.Client, state *r
 			}
 			if err := state.AddBot(bot); err != nil {
 				log.Printf("BotLogin: failed to add bot %s: %v", botID, err)
-				client.SendText(uid, fmt.Sprintf("✅ 登录成功！但保存配置失败: %v\nBot ID: `%s`\nToken: `%s`\nBaseURL: `%s`", err, botID, maskToken(token), effectiveBaseURL), ctxToken)
+				client.SendText(uid, fmt.Sprintf("✅ 扫码成功！但保存配置失败: %v\nBot ID: `%s`\nToken: `%s`\nBaseURL: `%s`", err, botID, maskToken(token), effectiveBaseURL), ctxToken)
 				return
 			}
 

@@ -304,6 +304,47 @@ func (s *State) SetBotEnabled(botID string, enabled bool) error {
 	return fmt.Errorf("bot %s not found", botID)
 }
 
+// UpdateBot updates an existing bot's fields. Returns error if bot not found.
+func (s *State) UpdateBot(bot Bot) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, b := range s.bots {
+		if b.BotID == bot.BotID {
+			s.bots[i] = bot
+			s.saveLocked()
+			return nil
+		}
+	}
+	return fmt.Errorf("bot %s not found", bot.BotID)
+}
+
+// AddOrUpdateBot adds a new bot if it doesn't exist, or updates existing bot's token if found by token.
+// Returns (isNew bool, error). If bot exists with same botID but different token, updates token.
+func (s *State) AddOrUpdateBot(bot Bot) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Default to hermes as default agent if not set
+	if bot.DefaultAgent == "" {
+		bot.DefaultAgent = "hermes"
+	}
+
+	// Check if bot with this BotID already exists
+	for i, b := range s.bots {
+		if b.BotID == bot.BotID {
+			// Bot exists - update its token
+			s.bots[i].Token = bot.Token
+			s.saveLocked()
+			return false, nil
+		}
+	}
+
+	// Bot doesn't exist - add it
+	s.bots = append(s.bots, bot)
+	s.saveLocked()
+	return true, nil
+}
+
 // GetDefaultAgentForBot returns the default agent name for a bot.
 // Returns "hermes" as fallback if the bot has no default or bot doesn't exist.
 func (s *State) GetDefaultAgentForBot(botID string) string {
